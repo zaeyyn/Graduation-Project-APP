@@ -1,4 +1,0 @@
-week 1:
-
-1.git and GitHub 
-2.flask ==> read quickStart pg, watch vid
