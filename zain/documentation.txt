@@ -1,4 +1,4 @@
 week 1 tasks:
-1. learn git and GitHub
+1. learn git and GitHub *
 2. read quick start pg
 3. watch vid
