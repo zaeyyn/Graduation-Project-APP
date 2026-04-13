@@ -4,12 +4,6 @@ from flask import Flask, request, jsonify
 from utils import extract_features
 import logging
 
-#check helth
-app = Flask(__name__)
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({"status": "ok", "model": "loaded"})
 
 # Configure basic logging
 logging.basicConfig(
@@ -72,3 +66,9 @@ def check():
 if __name__ == '__main__':
     app.logger.info("Running on http://0.0.0.0:5000")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+#check helth
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "model": "loaded"})
