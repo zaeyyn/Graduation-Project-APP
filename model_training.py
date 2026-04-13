@@ -3,7 +3,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import xgboost as xgb
 import joblib
+import os
 from utils import extract_features
+
 
 def main():
     print("Loading dataset...")
@@ -42,7 +44,6 @@ def main():
         eval_set=[(X_test, y_test)],
         verbose=50
     )
-
     print("Training complete.")
 
     y_prob = model.predict_proba(X_test)[:, 1]
@@ -50,20 +51,18 @@ def main():
     # Mode 1: Balanced Mode (Threshold = 0.50)
     y_pred_balanced = (y_prob >= 0.50).astype(int)
 
-    # Mode 2: Extra Protective Mode (Threshold = 0.35)
-    y_pred_protective = (y_prob >= 0.35).astype(int)
+    # Mode 2: Protective Mode (Threshold = 0.30)
+    y_pred_protective = (y_prob >= 0.30).astype(int)
 
     def print_metrics(y_true, y_pred, mode_name):
         accuracy  = accuracy_score(y_true, y_pred)
         precision = precision_score(y_true, y_pred)
         recall    = recall_score(y_true, y_pred)
         f1        = f1_score(y_true, y_pred)
-
-        cm = confusion_matrix(y_true, y_pred)
+        cm        = confusion_matrix(y_true, y_pred)
         TN = cm[0][0]
         FP = cm[0][1]
         fpr = FP / (FP + TN)
-
         print(f"=== {mode_name} PERFORMANCE ===")
         print(f"Accuracy:            {accuracy:.4f}  ({accuracy*100:.2f}%)")
         print(f"Precision:           {precision:.4f}")
@@ -71,13 +70,13 @@ def main():
         print(f"F1 Score:            {f1:.4f}")
         print(f"False Positive Rate: {fpr:.4f}  ({fpr*100:.2f}%)\n")
 
-    print_metrics(y_test, y_pred_balanced, "BALANCED MODE (Threshold 0.50)")
-    print_metrics(y_test, y_pred_protective, "EXTRA PROTECTIVE MODE (Threshold 0.35)")
+    print_metrics(y_test, y_pred_balanced,   "BALANCED MODE   (Threshold 0.50)")
+    print_metrics(y_test, y_pred_protective, "PROTECTIVE MODE (Threshold 0.30)")
 
-    import os
     os.makedirs('models', exist_ok=True)
     joblib.dump(model, 'models/model_improved.pkl')
     print("Model saved as models/model_improved.pkl")
+
 
 if __name__ == "__main__":
     main()
