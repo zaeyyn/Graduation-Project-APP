@@ -64,10 +64,9 @@ def check():
     return jsonify(response)
 
 if __name__ == '__main__':
-    app.logger.info("Running on http://0.0.0.0:5000")
-  import os
-port = int(os.environ.get("PORT", 5000))
-app.run(host="0.0.0.0", port=port)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
 
 #check helth
 
