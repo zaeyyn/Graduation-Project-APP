@@ -141,9 +141,8 @@ def check():
     if not data or 'url' not in data:
         return jsonify({"error": "No url provided"}), 400
 
-    url  = data['url']
-    mode = data.get('mode', 'balanced').lower()
-    threshold = 0.30 if mode == 'protective' else 0.50
+    url       = data['url']
+    threshold = 0.30
 
     vt_result, gsb_result = check_virustotal(url), check_google_safe_browsing(url)
     ml_verdict, probability = check_ml_model(url, threshold)
