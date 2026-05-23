@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class PhishingApiService {
-  static const String apiUrl = 'https://YOUR-APP.up.railway.app/check';
+  static const String apiUrl = 'https://linkguard-api-yy7v.onrender.com';
   // For Android emulator testing use: 'http://10.0.2.2:5000/check'
 
   static Future<Map<String, dynamic>?> checkUrl(String url) async {
