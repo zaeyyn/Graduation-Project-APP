@@ -1,4 +1,5 @@
 package com.example.myapplication
+
 import android.content.Intent
 import android.net.VpnService
 import android.os.Bundle
@@ -19,6 +20,9 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             startService(Intent(this, LinkGuardVpnService::class.java))
+            Toast.makeText(this, "LinkGuard VPN Started!", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "VPN permission denied.", Toast.LENGTH_SHORT).show()
         }
     }
 
