@@ -1,8 +1,14 @@
 package com.example.myapplication
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.net.VpnService
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import org.json.JSONObject
 import java.io.FileInputStream
 
 class LinkGuardVpnService : VpnService() {
@@ -55,15 +61,54 @@ class LinkGuardVpnService : VpnService() {
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.doOutput = true
+
                 val body = "{\"url\": \"$domain\"}"
                 connection.outputStream.write(body.toByteArray())
+
                 val response = connection.inputStream.bufferedReader().readText()
                 Log.d("LinkGuard", "API Response for $domain: $response")
                 connection.disconnect()
+
+                // Parse verdict and Arabic message from response
+                val json = JSONObject(response)
+                val verdict   = json.optString("verdict", "SAFE")
+                val messageAr = json.optString("message_ar", "تم اكتشاف رابط خطير: $domain")
+
+                if (verdict == "DANGER") {
+                    showNotification(domain, messageAr)
+                }
+
             } catch (e: Exception) {
                 Log.d("LinkGuard", "checkDomain error: ${e.message}")
             }
         }.start()
+    }
+
+    private fun showNotification(domain: String, messageAr: String) {
+        val channelId = "linkguard_alerts"
+
+        // Create notification channel (required for Android 8+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "LinkGuard Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Dangerous link alerts"
+            }
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("⚠️ رابط خطير")
+            .setContentText(messageAr)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(this).notify(domain.hashCode(), notification)
     }
 
     private fun extractDomain(data: ByteArray, length: Int): String? {
