@@ -55,7 +55,7 @@ class LinkGuardVpnService : VpnService() {
     private fun checkDomain(domain: String) {
         Thread {
             try {
-                val url = java.net.URL("https://graduation-project-app-production.up.railway.app/check")
+                val url = java.net.URL("https://linkguard-api-yy7v.onrender.com/check")
                 val connection = url.openConnection() as java.net.HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
