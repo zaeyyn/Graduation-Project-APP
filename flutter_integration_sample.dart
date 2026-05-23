@@ -3,24 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class PhishingApiService {
-  // Replace with your production URL or use 10.0.2.2 for Android Emulator connecting to localhost
-  static const String apiUrl = 'http://127.0.0.1:5000/check';
+  static const String apiUrl = 'https://YOUR-APP.up.railway.app/check';
+  // For Android emulator testing use: 'http://10.0.2.2:5000/check'
 
-  /// Sends a URL to the Python Flask API to determine its safety.
-  /// [mode] can be "balanced" or "protective"
-  static Future<Map<String, dynamic>?> checkUrl(String url, {String mode = 'balanced'}) async {
+  static Future<Map<String, dynamic>?> checkUrl(String url) async {
     try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'url': url,
-          'mode': mode,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse(apiUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'url': url}),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body); // Contains 'probability', 'active_verdict', etc.
+        return jsonDecode(response.body) as Map<String, dynamic>;
       } else {
         debugPrint('API Error: ${response.statusCode}');
         return null;
@@ -32,7 +29,6 @@ class PhishingApiService {
   }
 }
 
-// Example usage in a Stateful Widget
 class ScannerScreen extends StatefulWidget {
   @override
   _ScannerScreenState createState() => _ScannerScreenState();
@@ -40,30 +36,34 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen> {
   final TextEditingController _urlController = TextEditingController();
+
+  bool _isLoading = false;
   String _verdict = "Awaiting input...";
   double _score = 0.0;
   String _messageEn = "";
   String _messageAr = "";
-  bool _isProtectiveMode = false;
 
   void _scanUrl() async {
-    final url = _urlController.text;
-    final mode = _isProtectiveMode ? 'protective' : 'balanced';
+    final url = _urlController.text.trim();
+    if (url.isEmpty) return;
 
-    final result = await PhishingApiService.checkUrl(url, mode: mode);
-    
-    if (result != null) {
-      setState(() {
-        _score = result['score'];
-        _verdict = result['verdict'];
+    setState(() => _isLoading = true);
+
+    final result = await PhishingApiService.checkUrl(url);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+      if (result != null) {
+        _score     = (result['score'] as num).toDouble(); // safe cast
+        _verdict   = result['verdict'];
         _messageEn = result['message_en'];
         _messageAr = result['message_ar'];
-      });
-    } else {
-      setState(() {
+      } else {
         _verdict = "Error connecting to API";
-      });
-    }
+      }
+    });
   }
 
   @override
@@ -78,28 +78,41 @@ class _ScannerScreenState extends State<ScannerScreen> {
               controller: _urlController,
               decoration: InputDecoration(labelText: 'Enter URL'),
             ),
-            SwitchListTile(
-              title: Text("Extra Protective Mode"),
-              value: _isProtectiveMode,
-              onChanged: (bool value) {
-                setState(() => _isProtectiveMode = value);
-              },
-            ),
+            SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _scanUrl,
-              child: Text('Scan URL'),
+              onPressed: _isLoading ? null : _scanUrl,
+              child: _isLoading
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text('Scan URL'),
             ),
             SizedBox(height: 20),
-            Text('Verdict: $_verdict', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Verdict: $_verdict',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             Text('Confidence Score: $_score%'),
             if (_messageEn.isNotEmpty) ...[
               SizedBox(height: 10),
               Text(_messageEn, style: TextStyle(color: Colors.grey[700])),
-              Text(_messageAr, style: TextStyle(color: Colors.grey[700], fontSize: 16)),
+              Directionality(
+                textDirection: TextDirection.rtl,
+                child: Text(
+                  _messageAr,
+                  style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                ),
+              ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
   }
 }
