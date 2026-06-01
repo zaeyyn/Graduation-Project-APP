@@ -97,21 +97,30 @@ def check_google_safe_browsing(url: str):
         return None
 
 # ─────────────────────────────────────────────
-# ML Model Check (fixed to use phishing probability)
+# ML Model Check
 # ─────────────────────────────────────────────
 def check_ml_model(url: str, threshold: float):
     features = extract_features(url)
     feat_df  = pd.DataFrame([features])
-    probs = model.predict_proba(feat_df)[0]
+    probs    = model.predict_proba(feat_df)[0]
+    classes  = list(model.classes_)
 
-    # Log both probabilities for debugging
-    app.logger.info(f"Probabilities → phishing={probs[0]}, safe={probs[1]}")
+    app.logger.info(f"Model classes: {classes}")
+    app.logger.info(f"Probabilities: {dict(zip(classes, probs))}")
 
-    # Use phishing probability (class 0)
-    probability = probs[0]
-    verdict = 'DANGER' if probability >= threshold else 'SAFE'
-    app.logger.info(f"ML model → phishing_prob={round(probability * 100, 1)}, verdict={verdict}")
-    return verdict, probability
+    # class 1 = phishing/malicious, class 0 = safe
+    if 1 in classes:
+        phishing_prob = probs[classes.index(1)]
+    elif 'phishing' in classes:
+        phishing_prob = probs[classes.index('phishing')]
+    elif 'malicious' in classes:
+        phishing_prob = probs[classes.index('malicious')]
+    else:
+        phishing_prob = probs[-1]  # fallback
+
+    verdict = 'DANGER' if phishing_prob >= threshold else 'SAFE'
+    app.logger.info(f"ML model → phishing_prob={round(phishing_prob * 100, 1)}%, verdict={verdict}")
+    return verdict, phishing_prob
 
 # ─────────────────────────────────────────────
 # Verdict Combination
@@ -144,16 +153,18 @@ def check():
     url       = data['url']
     threshold = 0.30
 
-    vt_result, gsb_result = check_virustotal(url), check_google_safe_browsing(url)
-    ml_verdict, probability = check_ml_model(url, threshold)
+    vt_result, gsb_result   = check_virustotal(url), check_google_safe_browsing(url)
+    ml_verdict, probability  = check_ml_model(url, threshold)
 
     final_verdict = combine_verdicts(vt_result, gsb_result, ml_verdict)
     score = round(float(probability) * 100, 1)
 
     if final_verdict == 'SAFE':
-        message_en, message_ar = "This link appears to be safe.", "يبدو هذا الرابط آمناً."
+        message_en = "This link appears to be safe."
+        message_ar = "يبدو هذا الرابط آمناً."
     else:
-        message_en, message_ar = "This link is dangerous...", "هذا الرابط خطير..."
+        message_en = "This link is dangerous..."
+        message_ar = "هذا الرابط خطير..."
 
     response = {
         "url": url,
