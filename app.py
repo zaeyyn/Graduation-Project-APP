@@ -1,11 +1,10 @@
-
+import joblib
 import pandas as pd
 from flask import Flask, request, jsonify
 from utils import extract_features
 import logging
 import os
 import requests
-
 # ─────────────────────────────────────────────
 # Logging
 # ─────────────────────────────────────────────
