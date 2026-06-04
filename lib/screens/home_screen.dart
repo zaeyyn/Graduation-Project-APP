@@ -18,7 +18,6 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-
 class _HomeScreenState extends State<HomeScreen> {
   bool _protectionActive = true;
   int _safeCount = 0;
@@ -29,9 +28,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadStats();
-      VpnChannel.listenForLinks((url) {
-    checkLink(url);
-  });
+    VpnChannel.listenForLinks((url) {
+      checkLink(url);
+    });
   }
 
   Future<void> _loadStats() async {
@@ -47,11 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> checkLink(String url) async {
     if (!_protectionActive || _isChecking) return;
 
-    // تحقق من الـ whitelist أولاً
     final isTrusted = await WhitelistService.isDomainTrusted(url);
     if (isTrusted) {
-      _showSafeSnackbar(context.read<AppLocale>().lang,
-          trusted: true);
+      _showSafeSnackbar(context.read<AppLocale>().lang, trusted: true);
       return;
     }
 
@@ -59,11 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final result = await ApiService.checkUrl(url);
     final locale = context.read<AppLocale>();
     final domain = Uri.tryParse(url)?.host ?? url;
-    final verdictStr = result.verdict == Verdict.danger
-        ? 'DANGER'
-        : result.verdict == Verdict.warning
-            ? 'WARN'
-            : 'SAFE';
+
+    // Fixed: removed Verdict.warning reference
+    final verdictStr = result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
 
     await HistoryService.addEntry(LinkEntry(
       domain: domain,
@@ -75,7 +70,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() => _isChecking = false);
 
-    if (result.verdict == Verdict.danger) {
+    // Fixed: unreachable also goes to DangerScreen
+    if (result.verdict == Verdict.danger ||
+        result.verdict == Verdict.unreachable) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -115,9 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     trusted
-                        ? (lang == 'ar'
-                            ? 'موقع موثوق ✓'
-                            : 'Trusted website ✓')
+                        ? (lang == 'ar' ? 'موقع موثوق ✓' : 'Trusted website ✓')
                         : AppTexts.get('safe_notif', lang),
                     style: const TextStyle(
                       color: Colors.white,
@@ -322,17 +317,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                 ),
                                 Switch(
-  value: _protectionActive,
-  onChanged: (val) async {
-    setState(() => _protectionActive = val);
-    if (val) {
-      await VpnChannel.startVpn();
-    } else {
-      await VpnChannel.stopVpn();
-    }
-  },
-  activeColor: AppColors.accent,
-),
+                                  value: _protectionActive,
+                                  onChanged: (val) async {
+                                    setState(() => _protectionActive = val);
+                                    if (val) {
+                                      await VpnChannel.startVpn();
+                                    } else {
+                                      await VpnChannel.stopVpn();
+                                    }
+                                  },
+                                  activeColor: AppColors.accent,
+                                ),
                               ],
                             ),
                           ),
@@ -421,18 +416,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: OutlinedButton.icon(
                               onPressed: _isChecking
                                   ? null
-                                  : () => checkLink(
-                                      'https://www.google.com'),
-                              icon:
-                                  const Icon(Icons.check_circle_outline),
+                                  : () => checkLink('https://www.google.com'),
+                              icon: const Icon(Icons.check_circle_outline),
                               label: Text(
                                 'Test Safe Link',
                                 style: TextStyle(fontSize: locale.bodySize),
                               ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.safe,
-                                side:
-                                    const BorderSide(color: AppColors.safe),
+                                side: const BorderSide(color: AppColors.safe),
                               ),
                             ),
                           ),

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_texts.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_locale.dart';
 import '../widgets/bottom_nav.dart';
+import '../services/trusted_contacts_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,172 +14,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final TextEditingController _phoneController = TextEditingController();
-  String _savedPhone = '';
   bool _protectionActive = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPhone();
-  }
-
-  Future<void> _loadPhone() async {
-    final prefs = await SharedPreferences.getInstance();
-    final phone = prefs.getString('family_phone') ?? '';
-    setState(() {
-      _savedPhone = phone;
-      _phoneController.text = phone;
-    });
-  }
-
-  Future<void> _savePhone(String phone) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('family_phone', phone);
-    setState(() => _savedPhone = phone);
-  }
-
-  void _showPhoneDialog(BuildContext context, AppLocale locale) {
-    final t = (String k) => AppTexts.get(k, locale.lang);
-    final isAr = locale.isArabic;
-    final isDark = locale.darkMode;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => Directionality(
-        textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
-        child: AlertDialog(
-          backgroundColor:
-              isDark ? AppColors.darkCard : Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            t('family_number'),
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: locale.titleSize,
-              color: isDark
-                  ? AppColors.darkTextPrimary
-                  : AppColors.textPrimary,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                isAr
-                    ? 'أدخل رقم هاتف أحد أفراد العائلة ليتلقى إشعاراً عند اكتشاف رابط خطير'
-                    : 'Enter a family member\'s phone number to notify them when a dangerous link is detected.',
-                style: TextStyle(
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.textSecondary,
-                  fontSize: locale.subtitleSize,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(
-                      RegExp(r'[0-9+]'))
-                ],
-                textDirection: TextDirection.ltr,
-                style: TextStyle(
-                  color: isDark
-                      ? AppColors.darkTextPrimary
-                      : AppColors.textPrimary,
-                  fontSize: locale.bodySize,
-                ),
-                decoration: InputDecoration(
-                  hintText: '+962 7X XXX XXXX',
-                  hintStyle: TextStyle(
-                    color: isDark
-                        ? AppColors.darkTextSecondary
-                        : AppColors.textSecondary,
-                  ),
-                  prefixIcon: const Icon(Icons.phone_outlined,
-                      color: AppColors.accent),
-                  filled: true,
-                  fillColor: isDark
-                      ? AppColors.darkBg
-                      : AppColors.background,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                        color: isDark
-                            ? AppColors.darkDivider
-                            : AppColors.divider),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: AppColors.accent, width: 2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(
-                t('cancel'),
-                style: TextStyle(
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.textSecondary,
-                  fontSize: locale.bodySize,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                _savePhone(_phoneController.text.trim());
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: AppColors.safe,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    margin: const EdgeInsets.all(16),
-                    content: Text(
-                      t('saved'),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: locale.bodySize,
-                      ),
-                    ),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(
-                t('save'),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: locale.bodySize,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -202,6 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: bgColor,
         body: Column(
           children: [
+            // ── Header ──
             Container(
               color: AppColors.primary,
               padding: EdgeInsets.only(
@@ -223,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(16),
@@ -321,24 +157,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ── TRUSTED CONTACT ──
+                  // ── TRUSTED CONTACTS ──
                   _SectionLabel(
                       t('trusted_section'), textSecondary,
                       locale.subtitleSize),
-                  _SettingTile(
-                    title: t('family_number'),
-                    subtitle: _savedPhone.isEmpty
-                        ? t('not_set')
-                        : _savedPhone,
+                  _TrustedContactsWidget(
+                    locale: locale,
                     cardColor: cardColor,
                     textPrimary: textPrimary,
                     textSecondary: textSecondary,
-                    locale: locale,
-                    onTap: () => _showPhoneDialog(context, locale),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: AppColors.textSecondary,
-                    ),
+                    isDark: isDark,
                   ),
                   const SizedBox(height: 8),
                   _SettingTile(
@@ -369,6 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+
             const BottomNav(currentIndex: 4),
           ],
         ),
@@ -377,6 +206,236 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+// ── Trusted Contacts Widget ──
+class _TrustedContactsWidget extends StatefulWidget {
+  final AppLocale locale;
+  final Color cardColor;
+  final Color textPrimary;
+  final Color textSecondary;
+  final bool isDark;
+
+  const _TrustedContactsWidget({
+    required this.locale,
+    required this.cardColor,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.isDark,
+  });
+
+  @override
+  State<_TrustedContactsWidget> createState() =>
+      _TrustedContactsWidgetState();
+}
+
+class _TrustedContactsWidgetState
+    extends State<_TrustedContactsWidget> {
+  List<String> _contacts = [];
+  final TextEditingController _ctrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final list = await TrustedContactsService.getContacts();
+    if (mounted) setState(() => _contacts = list);
+  }
+
+  Future<void> _add() async {
+    final phone = _ctrl.text.trim();
+    if (phone.isEmpty) return;
+    await TrustedContactsService.addContact(phone);
+    _ctrl.clear();
+    await _load();
+  }
+
+  Future<void> _remove(String phone) async {
+    await TrustedContactsService.removeContact(phone);
+    await _load();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = widget.locale;
+    final t = (String k) => AppTexts.get(k, locale.lang);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: widget.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            t('family_number'),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: locale.bodySize,
+              color: widget.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Input row
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _ctrl,
+                  keyboardType: TextInputType.phone,
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                    color: widget.textPrimary,
+                    fontSize: locale.bodySize,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: t('trusted_hint'),
+                    hintStyle: TextStyle(
+                      color: widget.textSecondary,
+                      fontSize: locale.subtitleSize,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.phone_outlined,
+                      color: AppColors.accent,
+                      size: 20,
+                    ),
+                    filled: true,
+                    fillColor: widget.isDark
+                        ? AppColors.darkBg
+                        : AppColors.background,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: widget.isDark
+                            ? AppColors.darkDivider
+                            : AppColors.divider,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.accent,
+                        width: 2,
+                      ),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _add,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+                child: Text(
+                  t('add_trusted'),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: locale.subtitleSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Contacts list
+          if (_contacts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                t('no_trusted'),
+                style: TextStyle(
+                  color: widget.textSecondary.withOpacity(0.6),
+                  fontSize: locale.subtitleSize,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            )
+          else
+            ..._contacts.map(
+              (phone) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.accent.withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.person_outline,
+                      color: AppColors.accent,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        phone,
+                        textDirection: TextDirection.ltr,
+                        style: TextStyle(
+                          color: widget.textPrimary,
+                          fontSize: locale.bodySize,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => _remove(phone),
+                      child: const Icon(
+                        Icons.close,
+                        color: AppColors.danger,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Section Label ──
 class _SectionLabel extends StatelessWidget {
   final String label;
   final Color color;
@@ -400,6 +459,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
+// ── Setting Tile ──
 class _SettingTile extends StatelessWidget {
   final String title;
   final String subtitle;

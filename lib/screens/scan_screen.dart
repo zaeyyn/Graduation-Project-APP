@@ -27,6 +27,7 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _scan() async {
     final url = _controller.text.trim();
     if (url.isEmpty) return;
+
     setState(() {
       _scanning = true;
       _result = null;
@@ -50,11 +51,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
     final result = await ApiService.checkUrl(url);
     final domain = Uri.tryParse(url)?.host ?? url;
-    final verdictStr = result.verdict == Verdict.danger
-        ? 'DANGER'
-        : result.verdict == Verdict.warning
-            ? 'WARN'
-            : 'SAFE';
+    final verdictStr = result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
 
     await HistoryService.addEntry(LinkEntry(
       domain: domain,
@@ -62,31 +59,43 @@ class _ScanScreenState extends State<ScanScreen> {
       time: DateTime.now(),
     ));
 
-    if (mounted) {
-      setState(() {
-        _scanning = false;
-        _result = result;
-        _scannedUrl = url;
-      });
+    if (!mounted) return;
+    setState(() {
+      _scanning = false;
+      _result = result;
+      _scannedUrl = url;
+    });
+  }
 
-      if (result.verdict == Verdict.danger) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DangerScreen(
-              url: url,
-              threatScore: result.threatScore,
-            ),
-          ),
-        );
-      }
+  Color _verdictColor(Verdict v) {
+    switch (v) {
+      case Verdict.danger:
+      case Verdict.unreachable:
+        return AppColors.danger;
+      case Verdict.safe:
+        return AppColors.safe;
     }
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  IconData _verdictIcon(Verdict v) {
+    switch (v) {
+      case Verdict.danger:
+      case Verdict.unreachable:
+        return Icons.dangerous_outlined;
+      case Verdict.safe:
+        return Icons.check_circle_outline;
+    }
+  }
+
+  String _verdictLabel(Verdict v, String lang) {
+    switch (v) {
+      case Verdict.danger:
+        return lang == 'ar' ? 'خطر' : 'DANGER';
+      case Verdict.unreachable:
+        return lang == 'ar' ? 'تعذّر التحقق' : 'UNVERIFIED';
+      case Verdict.safe:
+        return lang == 'ar' ? 'آمن' : 'SAFE';
+    }
   }
 
   @override
@@ -95,6 +104,7 @@ class _ScanScreenState extends State<ScanScreen> {
     final t = (String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final isDark = locale.darkMode;
+
     final bgColor = isDark ? AppColors.darkBg : AppColors.background;
     final cardColor = isDark ? AppColors.darkCard : AppColors.cardBg;
     final textPrimary =
@@ -102,32 +112,13 @@ class _ScanScreenState extends State<ScanScreen> {
     final textSecondary =
         isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
-    Color resultColor = AppColors.safe;
-    IconData resultIcon = Icons.check_circle;
-    String resultLabel = '';
-
-    if (_result != null) {
-      if (_result!.verdict == Verdict.danger) {
-        resultColor = AppColors.danger;
-        resultIcon = Icons.dangerous_rounded;
-        resultLabel = t('danger');
-      } else if (_result!.verdict == Verdict.warning) {
-        resultColor = AppColors.warning;
-        resultIcon = Icons.warning_rounded;
-        resultLabel = t('warn');
-      } else {
-        resultColor = AppColors.safe;
-        resultIcon = Icons.check_circle_rounded;
-        resultLabel = t('safe');
-      }
-    }
-
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
       child: Scaffold(
         backgroundColor: bgColor,
         body: Column(
           children: [
+            // ── Header ──
             Container(
               color: AppColors.primary,
               padding: EdgeInsets.only(
@@ -136,112 +127,100 @@ class _ScanScreenState extends State<ScanScreen> {
                 left: 24,
                 right: 24,
               ),
-              child: Align(
-                alignment:
-                    isAr ? Alignment.centerRight : Alignment.centerLeft,
-                child: Text(
-                  t('manual_scan'),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: locale.headingSize,
-                    fontWeight: FontWeight.bold,
+              child: Row(
+                children: [
+                  Text(
+                    t('scan_link'),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: locale.headingSize,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
+
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Input card
+                    // ── Input card ──
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: cardColor,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black
-                                .withOpacity(isDark ? 0.3 : 0.06),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text(
+                            t('enter_url'),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: locale.titleSize,
+                              color: textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           TextField(
                             controller: _controller,
                             textDirection: TextDirection.ltr,
                             decoration: InputDecoration(
-                              hintText: t('paste_link'),
-                              hintStyle:
-                                  TextStyle(color: textSecondary),
-                              prefixIcon: const Icon(Icons.link,
-                                  color: AppColors.accent),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.content_paste,
-                                    color: AppColors.accent),
-                                onPressed: () async {
-                                  final data = await Clipboard.getData(
-                                      'text/plain');
-                                  if (data?.text != null) {
-                                    _controller.text = data!.text!;
-                                  }
-                                },
-                                tooltip: 'Paste',
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(
-                                    color: isDark
-                                        ? AppColors.darkDivider
-                                        : AppColors.divider),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(
-                                    color: AppColors.accent, width: 2),
-                              ),
+                              hintText: 'https://example.com',
+                              hintStyle: TextStyle(color: textSecondary),
                               filled: true,
                               fillColor: isDark
                                   ? AppColors.darkBg
                                   : AppColors.background,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.paste_outlined),
+                                onPressed: () async {
+                                  final data = await Clipboard.getData(
+                                      Clipboard.kTextPlain);
+                                  if (data?.text != null) {
+                                    _controller.text = data!.text!;
+                                  }
+                                },
+                              ),
                             ),
-                            style: TextStyle(color: textPrimary),
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
-                            height: 52,
                             child: ElevatedButton.icon(
                               onPressed: _scanning ? null : _scan,
                               icon: _scanning
                                   ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
+                                      width: 18,
+                                      height: 18,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
                                         color: Colors.white,
                                       ),
                                     )
-                                  : const Icon(Icons.search,
-                                      color: Colors.white),
+                                  : const Icon(Icons.search),
                               label: Text(
                                 _scanning
-                                    ? t('scanning')
-                                    : t('scan_now'),
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: locale.buttonSize,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                    ? t('checking')
+                                    : t('check_link'),
+                                style:
+                                    TextStyle(fontSize: locale.bodySize),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
                             ),
@@ -250,36 +229,41 @@ class _ScanScreenState extends State<ScanScreen> {
                       ),
                     ),
 
-                    // Result card
+                    const SizedBox(height: 20),
+
+                    // ── Result card ──
                     if (_result != null) ...[
-                      const SizedBox(height: 20),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeOut,
+                      Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: resultColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border:
-                              Border.all(color: resultColor, width: 2),
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _verdictColor(_result!.verdict)
+                                .withOpacity(0.4),
+                            width: 1.5,
+                          ),
                         ),
                         child: Column(
                           children: [
-                            Icon(resultIcon,
-                                color: resultColor, size: 56),
+                            Icon(
+                              _verdictIcon(_result!.verdict),
+                              size: 56,
+                              color: _verdictColor(_result!.verdict),
+                            ),
                             const SizedBox(height: 12),
                             Text(
-                              resultLabel,
+                              _verdictLabel(_result!.verdict, locale.lang),
                               style: TextStyle(
-                                color: resultColor,
-                                fontSize: locale.titleSize + 4,
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
+                                color: _verdictColor(_result!.verdict),
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              isAr
+                              locale.lang == 'ar'
                                   ? _result!.messageAr
                                   : _result!.messageEn,
                               textAlign: TextAlign.center,
@@ -288,277 +272,89 @@ class _ScanScreenState extends State<ScanScreen> {
                                 fontSize: locale.bodySize,
                               ),
                             ),
-                            if (_result!.threatScore > 0) ...[
-                              const SizedBox(height: 14),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    t('threat_level'),
-                                    style: TextStyle(
+                            const SizedBox(height: 16),
+                            // Score bar
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      t('threat_score'),
+                                      style: TextStyle(
                                         color: textSecondary,
-                                        fontSize: locale.subtitleSize),
-                                  ),
-                                  Text(
-                                    '${(_result!.threatScore * 100).toInt()}%',
-                                    style: TextStyle(
-                                      color: resultColor,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: locale.subtitleSize,
+                                        fontSize: locale.subtitleSize,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_result!.threatScore.toStringAsFixed(1)}%',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: _verdictColor(_result!.verdict),
+                                        fontSize: locale.subtitleSize,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: LinearProgressIndicator(
+                                    value: _result!.threatScore / 100,
+                                    minHeight: 8,
+                                    backgroundColor: isDark
+                                        ? AppColors.darkBg
+                                        : AppColors.background,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      _verdictColor(_result!.verdict),
                                     ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: LinearProgressIndicator(
-                                  value: _result!.threatScore
-                                      .clamp(0.0, 1.0),
-                                  minHeight: 8,
-                                  backgroundColor:
-                                      resultColor.withOpacity(0.2),
-                                  valueColor:
-                                      AlwaysStoppedAnimation(resultColor),
+                                ),
+                              ],
+                            ),
+                            if (_result!.verdict == Verdict.danger ||
+                                _result!.verdict == Verdict.unreachable) ...[
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => DangerScreen(
+                                          url: _scannedUrl,
+                                          threatScore: _result!.threatScore,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.warning_amber),
+                                  label: Text(t('view_details')),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.danger,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 12),
-                            // URL
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: resultColor.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                _scannedUrl,
-                                textDirection: TextDirection.ltr,
-                                style: TextStyle(
-                                  color: textSecondary,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
                           ],
                         ),
                       ),
                     ],
-
-                    const SizedBox(height: 20),
-
-                    // Whitelist section
-                    _WhitelistSection(
-                      locale: locale,
-                      isDark: isDark,
-                      cardColor: cardColor,
-                      textPrimary: textPrimary,
-                      textSecondary: textSecondary,
-                    ),
                   ],
                 ),
               ),
             ),
+
             const BottomNav(currentIndex: 1),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _WhitelistSection extends StatefulWidget {
-  final AppLocale locale;
-  final bool isDark;
-  final Color cardColor;
-  final Color textPrimary;
-  final Color textSecondary;
-
-  const _WhitelistSection({
-    required this.locale,
-    required this.isDark,
-    required this.cardColor,
-    required this.textPrimary,
-    required this.textSecondary,
-  });
-
-  @override
-  State<_WhitelistSection> createState() => _WhitelistSectionState();
-}
-
-class _WhitelistSectionState extends State<_WhitelistSection> {
-  List<String> _list = [];
-  final TextEditingController _wlController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final list = await WhitelistService.getWhitelist();
-    if (mounted) setState(() => _list = list);
-  }
-
-  Future<void> _add() async {
-    await WhitelistService.addDomain(_wlController.text);
-    _wlController.clear();
-    await _load();
-  }
-
-  Future<void> _remove(String domain) async {
-    await WhitelistService.removeDomain(domain);
-    await _load();
-  }
-
-  @override
-  void dispose() {
-    _wlController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final locale = widget.locale;
-    final t = (String k) => AppTexts.get(k, locale.lang);
-    final isAr = locale.isArabic;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: widget.cardColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(widget.isDark ? 0.3 : 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.verified_outlined,
-                  color: AppColors.safe, size: 22),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t('whitelist'),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: locale.bodySize + 1,
-                        color: widget.textPrimary,
-                      ),
-                    ),
-                    Text(
-                      t('whitelist_sub'),
-                      style: TextStyle(
-                        color: widget.textSecondary,
-                        fontSize: locale.subtitleSize,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _wlController,
-                  textDirection: TextDirection.ltr,
-                  decoration: InputDecoration(
-                    hintText: t('whitelist_hint'),
-                    hintStyle: TextStyle(color: widget.textSecondary),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                          color: widget.isDark
-                              ? AppColors.darkDivider
-                              : AppColors.divider),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppColors.safe, width: 2),
-                    ),
-                    filled: true,
-                    fillColor: widget.isDark
-                        ? AppColors.darkBg
-                        : AppColors.background,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                  ),
-                  style: TextStyle(color: widget.textPrimary, fontSize: 14),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: _add,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.safe,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                ),
-                child: Text(
-                  t('add'),
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          if (_list.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            ..._list.map((domain) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.safe.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: AppColors.safe.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.check_circle,
-                          color: AppColors.safe, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          domain,
-                          style: TextStyle(
-                            color: widget.textPrimary,
-                            fontSize: locale.subtitleSize,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _remove(domain),
-                        child: const Icon(Icons.close,
-                            color: AppColors.danger, size: 18),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
-        ],
       ),
     );
   }
