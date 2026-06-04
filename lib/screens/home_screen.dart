@@ -63,6 +63,9 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isChecking = true);
 
       final result = await ApiService.checkUrl(url);
+      debugPrint("URL: $url");
+      debugPrint("Verdict: ${result.verdict}");
+      debugPrint("Threat score: ${result.threatScore}");
 
       if (!mounted) return;
 
