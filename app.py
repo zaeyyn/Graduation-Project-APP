@@ -139,11 +139,19 @@ def check_ml_model(url: str, threshold: float = 0.55):
 #  Both unavailable          → use ML verdict
 # ─────────────────────────────────────────────
 def combine_verdicts(vt_result, gsb_result, ml_verdict):
+    # If either trusted API confirms DANGER → block it
     if vt_result == 'DANGER' or gsb_result == 'DANGER':
         return 'DANGER'
-    if vt_result == 'SAFE' or gsb_result == 'SAFE':
+
+    # If BOTH trusted APIs say SAFE → trust them
+    if vt_result == 'SAFE' and gsb_result == 'SAFE':
         return 'SAFE'
-    # Both APIs unavailable — fall back to ML
+
+    # One API unavailable, one says SAFE → use ML as tiebreaker
+    if vt_result == 'SAFE' or gsb_result == 'SAFE':
+        return ml_verdict
+
+    # Both unavailable → fall back to ML only
     app.logger.info("VT and GSB both unavailable — using ML verdict.")
     return ml_verdict
 
