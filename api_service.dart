@@ -21,7 +21,7 @@ class LinkResult {
 
 class ApiService {
   // غيّر هاد لما يكون السيرفر جاهز
-  static const String baseUrl = 'https://your-api-server.com';
+  static const String baseUrl = 'https://linkguard-api-yy7v.onrender.com';
 
   static Future<LinkResult> checkUrl(String url) async {
     try {
