@@ -100,20 +100,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           locale.setLang(isAr ? 'en' : 'ar'),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                            horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
-                          color: bgColor,
+                          color: isDark
+                              ? const Color(0xFF2D3748)
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: isDark
-                                  ? AppColors.darkDivider
-                                  : AppColors.divider),
+                            color: isDark
+                                ? const Color(0xFF4A5568)
+                                : AppColors.accent,
+                            width: 1.5,
+                          ),
                         ),
                         child: Text(
                           isAr ? 'العربية' : 'English',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
+                            color: isDark
+                                ? Colors.white
+                                : AppColors.primary,
                             fontSize: locale.bodySize,
                           ),
                         ),
