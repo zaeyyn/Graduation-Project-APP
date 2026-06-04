@@ -7,9 +7,9 @@ import '../widgets/bottom_nav.dart';
 import '../services/history_service.dart';
 import '../services/api_service.dart';
 import '../services/whitelist_service.dart';
+import '../services/vpn_service.dart';
 import '../models/link_entry.dart';
 import 'danger_screen.dart';
-import '../services/vpn_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,7 +17,6 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _protectionActive = true;
@@ -29,9 +28,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadStats();
-      VpnChannel.listenForLinks((url) {
-    checkLink(url);
-  });
+
+    // ابدأ تسمع على الروابط من الـ VPN
+    VpnChannel.listenForLinks((url) {
+      checkLink(url);
+    });
   }
 
   Future<void> _loadStats() async {
@@ -50,8 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // تحقق من الـ whitelist أولاً
     final isTrusted = await WhitelistService.isDomainTrusted(url);
     if (isTrusted) {
-      _showSafeSnackbar(context.read<AppLocale>().lang,
-          trusted: true);
+      _showSafeSnackbar(context.read<AppLocale>().lang, trusted: true);
       return;
     }
 
@@ -59,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final result = await ApiService.checkUrl(url);
     final locale = context.read<AppLocale>();
     final domain = Uri.tryParse(url)?.host ?? url;
+
     final verdictStr = result.verdict == Verdict.danger
         ? 'DANGER'
         : result.verdict == Verdict.warning
@@ -96,8 +97,8 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         backgroundColor: trusted ? AppColors.primaryLight : AppColors.safe,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 3),
         content: Row(
@@ -197,6 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ],
                   ),
+                  // Language switcher
                   GestureDetector(
                     onTap: () => locale.setLang(isAr ? 'en' : 'ar'),
                     child: Container(
@@ -227,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    // ── Protection card ──
+                    // ── Protection Card ──
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
@@ -245,6 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: Column(
                         children: [
+                          // Shield icon
                           Container(
                             width: 80,
                             height: 80,
@@ -287,6 +290,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
+
+                          // Toggle row
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 12),
@@ -322,17 +327,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                 ),
                                 Switch(
-  value: _protectionActive,
-  onChanged: (val) async {
-    setState(() => _protectionActive = val);
-    if (val) {
-      await VpnChannel.startVpn();
-    } else {
-      await VpnChannel.stopVpn();
-    }
-  },
-  activeColor: AppColors.accent,
-),
+                                  value: _protectionActive,
+                                  onChanged: (val) async {
+                                    setState(
+                                        () => _protectionActive = val);
+                                    if (val) {
+                                      await VpnChannel.startVpn();
+                                    } else {
+                                      await VpnChannel.stopVpn();
+                                    }
+                                  },
+                                  activeColor: AppColors.accent,
+                                ),
                               ],
                             ),
                           ),
@@ -342,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     const SizedBox(height: 16),
 
-                    // ── Stats row ──
+                    // ── Stats Row ──
                     Row(
                       children: [
                         Expanded(
@@ -369,13 +375,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     const SizedBox(height: 16),
 
-                    // ── Test buttons ──
+                    // ── Test Buttons ──
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: cardColor,
                         borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black
+                                .withOpacity(isDark ? 0.3 : 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,6 +403,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
+
+                          // Test dangerous
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
@@ -403,19 +419,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2),
                                     )
-                                  : const Icon(Icons.bug_report_outlined),
+                                  : const Icon(
+                                      Icons.bug_report_outlined),
                               label: Text(
-                                'Test Dangerous Link',
-                                style: TextStyle(fontSize: locale.bodySize),
+                                t('test_dangerous'),
+                                style: TextStyle(
+                                    fontSize: locale.bodySize),
                               ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.danger,
                                 side: const BorderSide(
                                     color: AppColors.danger),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 8),
+
+                          // Test safe
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
@@ -423,22 +446,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ? null
                                   : () => checkLink(
                                       'https://www.google.com'),
-                              icon:
-                                  const Icon(Icons.check_circle_outline),
+                              icon: const Icon(
+                                  Icons.check_circle_outline),
                               label: Text(
-                                'Test Safe Link',
-                                style: TextStyle(fontSize: locale.bodySize),
+                                t('test_safe'),
+                                style: TextStyle(
+                                    fontSize: locale.bodySize),
                               ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.safe,
-                                side:
-                                    const BorderSide(color: AppColors.safe),
+                                side: const BorderSide(
+                                    color: AppColors.safe),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -452,6 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ── Stat Card ──
 class _StatCard extends StatelessWidget {
   final String value;
   final String label;
@@ -476,7 +505,8 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+            color:
+                Colors.black.withOpacity(isDark ? 0.3 : 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
