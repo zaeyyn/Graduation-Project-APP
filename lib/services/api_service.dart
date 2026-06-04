@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-enum Verdict { safe, warning, danger }
+enum Verdict { safe, danger, unreachable }
 
 class LinkResult {
   final Verdict verdict;
@@ -20,8 +20,7 @@ class LinkResult {
 }
 
 class ApiService {
-  // غيّر هاد لما يكون السيرفر جاهز
-  static const String baseUrl = 'https://your-api-server.com';
+  static const String baseUrl = 'https://linkguard-api-yy7v.onrender.com';
 
   static Future<LinkResult> checkUrl(String url) async {
     try {
@@ -31,17 +30,15 @@ class ApiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'url': url}),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 30)); // increased for Render cold start
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final verdictStr = data['verdict']?.toString().toUpperCase() ?? 'SAFE';
+        final verdictStr = data['verdict']?.toString().toUpperCase() ?? 'DANGER';
 
         Verdict verdict;
         if (verdictStr == 'DANGER') {
           verdict = Verdict.danger;
-        } else if (verdictStr == 'WARNING') {
-          verdict = Verdict.warning;
         } else {
           verdict = Verdict.safe;
         }
@@ -54,15 +51,17 @@ class ApiService {
           messageAr: data['message_ar'] ?? 'تم تحليل الرابط.',
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      print('API error: $e');
+    }
 
-    // Fallback — Safe by default when API unreachable
+    // Fallback — DANGER when API unreachable (fail safe)
     return LinkResult(
-      verdict: Verdict.safe,
+      verdict: Verdict.unreachable,
       url: url,
       threatScore: 0.0,
-      messageEn: 'Could not verify link. Proceeding with caution.',
-      messageAr: 'تعذّر التحقق من الرابط.',
+      messageEn: 'Could not verify link. Treat with caution.',
+      messageAr: 'تعذّر التحقق من الرابط. كن حذراً.',
     );
   }
 }
