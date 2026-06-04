@@ -34,7 +34,7 @@ logging.info(f"Model loaded. Classes: {list(model.classes_)}")
 # ─────────────────────────────────────────────
 def check_virustotal(url: str):
     if not VIRUSTOTAL_KEY:
-        app.logger.warning("VirusTotal key not set — skipping.")
+        app.logger.warning("ae4dd714acee2f5f32abc2740c6ff87a397bc1798ec7a9d7ea78aefbc7cd35f9")
         return None
     try:
         headers  = {"x-apikey": VIRUSTOTAL_KEY}
@@ -73,7 +73,7 @@ def check_virustotal(url: str):
 # ─────────────────────────────────────────────
 def check_google_safe_browsing(url: str):
     if not GOOGLE_SB_KEY:
-        app.logger.warning("Google Safe Browsing key not set — skipping.")
+        app.logger.warning("AIzaSyA8xgJY8evTJIiqoM_LL7_YO-7EQ5MEeHE")
         return None
     try:
         endpoint = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_SB_KEY}"
