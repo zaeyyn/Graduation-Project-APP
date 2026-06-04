@@ -14,6 +14,7 @@ import '../services/vpn_service.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -46,47 +47,73 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> checkLink(String url) async {
     if (!_protectionActive || _isChecking) return;
 
-    final isTrusted = await WhitelistService.isDomainTrusted(url);
-    if (isTrusted) {
-      _showSafeSnackbar(context.read<AppLocale>().lang, trusted: true);
-      return;
-    }
+    try {
+      final isTrusted = await WhitelistService.isDomainTrusted(url);
 
-    setState(() => _isChecking = true);
-    final result = await ApiService.checkUrl(url);
-    final locale = context.read<AppLocale>();
-    final domain = Uri.tryParse(url)?.host ?? url;
+      if (!mounted) return;
 
-    // Fixed: removed Verdict.warning reference
-    final verdictStr = result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
+      if (isTrusted) {
+        _showSafeSnackbar(
+          context.read<AppLocale>().lang,
+          trusted: true,
+        );
+        return;
+      }
 
-    await HistoryService.addEntry(LinkEntry(
-      domain: domain,
-      verdict: verdictStr,
-      time: DateTime.now(),
-    ));
-    await _loadStats();
+      setState(() => _isChecking = true);
 
-    if (!mounted) return;
-    setState(() => _isChecking = false);
+      final result = await ApiService.checkUrl(url);
 
-    // Fixed: unreachable also goes to DangerScreen
-    if (result.verdict == Verdict.danger ||
-        result.verdict == Verdict.unreachable) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => DangerScreen(
-            url: url,
-            threatScore: result.threatScore,
-          ),
+      if (!mounted) return;
+
+      final locale = context.read<AppLocale>();
+      final domain = Uri.tryParse(url)?.host ?? url;
+
+      final verdictStr =
+          result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
+
+      await HistoryService.addEntry(
+        LinkEntry(
+          domain: domain,
+          verdict: verdictStr,
+          time: DateTime.now(),
         ),
       );
-    } else {
-      _showSafeSnackbar(locale.lang);
+
+      await _loadStats();
+
+      if (!mounted) return;
+
+      if (result.verdict == Verdict.danger ||
+          result.verdict == Verdict.unreachable) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DangerScreen(
+              url: url,
+              threatScore: result.threatScore,
+            ),
+          ),
+        );
+      } else {
+        _showSafeSnackbar(locale.lang);
+      }
+    } catch (e) {
+      debugPrint('API error: $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to check URL: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isChecking = false);
+      }
     }
   }
-
   void _showSafeSnackbar(String lang, {bool trusted = false}) {
     final isDark = context.read<AppLocale>().darkMode;
     ScaffoldMessenger.of(context).showSnackBar(
