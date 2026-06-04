@@ -54,7 +54,9 @@ class ApiService {
           messageAr: data['message_ar'] ?? 'تم تحليل الرابط.',
         );
       }
-    } catch (_) {}
+    } catch (e) {
+  print('ApiService error: $e');
+  }
 
     // Fallback — Safe by default when API unreachable
     return LinkResult(
