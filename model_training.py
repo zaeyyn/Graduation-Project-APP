@@ -26,7 +26,7 @@ def main():
     print(f"Assigning scale_pos_weight: {scale_weight:.2f}")
 
     model = xgb.XGBClassifier(
-        n_estimators=300,
+        n_estimators=301,
         max_depth=8,
         learning_rate=0.05,
         subsample=0.8,
