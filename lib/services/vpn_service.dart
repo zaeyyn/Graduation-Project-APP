@@ -3,24 +3,26 @@ import 'package:flutter/services.dart';
 class VpnChannel {
   static const _channel = MethodChannel('linkguard/vpn');
 
-  // شغّل الـ VPN
+  // Start the VPN
   static Future<void> startVpn() async {
     await _channel.invokeMethod('startVpn');
   }
 
-  // وقّف الـ VPN
+  // Stop the VPN
   static Future<void> stopVpn() async {
     await _channel.invokeMethod('stopVpn');
   }
 
-  // استقبل الروابط من الـ VPN
-  // onLinkDetected: function بتشتغل كل ما يجي رابط جديد
+  // Listen for links from both VPN service AND Accessibility service
   static void listenForLinks(Function(String url) onLinkDetected) {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onLinkDetected') {
         final domain = call.arguments as String;
-        // حوّل الـ domain لـ URL كامل
         final url = 'https://$domain';
+        onLinkDetected(url);
+      }
+      if (call.method == 'onUrlDetected') {
+        final url = call.arguments as String;
         onLinkDetected(url);
       }
     });

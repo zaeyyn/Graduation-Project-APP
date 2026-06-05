@@ -1,16 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Internet access -->
     <uses-permission android:name="android.permission.INTERNET"/>
-
-    <!-- VPN permission -->
     <uses-permission android:name="android.permission.BIND_VPN_SERVICE"/>
-
-    <!-- Foreground service permission (required for background VPN) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-
-    <!-- Notification permission (required for Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"/>
 
     <application
         android:label="LinkGuard"
@@ -27,16 +21,16 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
             <meta-data
-                android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme"
-                />
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
 
-        <!-- VPN Service declaration -->
+        <!-- VPN Service -->
         <service
             android:name=".LinkGuardVpnService"
             android:exported="false"
@@ -45,6 +39,20 @@
             <intent-filter>
                 <action android:name="android.net.VpnService"/>
             </intent-filter>
+        </service>
+
+        <!-- Accessibility Service -->
+        <service
+            android:name=".LinkGuardAccessibilityService"
+            android:exported="true"
+            android:label="LinkGuard Protection"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config"/>
         </service>
 
         <meta-data
