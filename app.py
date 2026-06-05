@@ -102,10 +102,8 @@ def check_google_safe_browsing(url: str):
 
 # ─────────────────────────────────────────────
 # 3rd CHECK: ML Model
-# FIXED: model classes are inverted — class 0 = safe, class 1 = dangerous
-# but model assigns high scores to safe URLs for class 1
-# so we use the class 0 (safe) probability and flag as DANGER when it's LOW
-# threshold: if safe_prob < 0.50 → DANGER
+# Uses safe_prob (class 0) to determine verdict
+# DANGER when safe_prob < 0.50
 # ─────────────────────────────────────────────
 def check_ml_model(url: str):
     try:
@@ -117,7 +115,6 @@ def check_ml_model(url: str):
         app.logger.info(f"ML classes: {classes}")
         app.logger.info(f"ML probs:   {dict(zip(classes, probs))}")
 
-        # Get safe probability (class 0)
         if 0 in classes:
             safe_prob   = probs[classes.index(0)]
             danger_prob = 1.0 - safe_prob
@@ -125,9 +122,7 @@ def check_ml_model(url: str):
             danger_prob = probs[-1]
             safe_prob   = 1.0 - danger_prob
 
-        # DANGER when safe probability is low (< 50%)
         verdict = 'DANGER' if safe_prob < 0.50 else 'SAFE'
-
         app.logger.info(f"ML → safe_prob={round(safe_prob*100,1)}%, danger_prob={round(danger_prob*100,1)}%, verdict={verdict}")
         return verdict, danger_prob
 
@@ -201,22 +196,6 @@ def check():
             "google_safe_browsing": gsb_result or "unavailable",
             "ml_model":             ml_verdict
         }
-    })
-
-# ─────────────────────────────────────────────
-# Debug endpoint (temporary)
-# ─────────────────────────────────────────────
-@app.route('/debug', methods=['POST'])
-def debug():
-    data = request.get_json(silent=True)
-    url = data['url'].strip()
-    features = extract_features(url)
-    feat_df = pd.DataFrame([features])
-    probs = model.predict_proba(feat_df)[0]
-    classes = list(model.classes_)
-    return jsonify({
-        "url": url,
-        "probabilities": dict(zip([str(c) for c in classes], [round(float(p)*100,1) for p in probs]))
     })
 
 # ─────────────────────────────────────────────
