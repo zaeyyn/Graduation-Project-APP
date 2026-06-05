@@ -43,23 +43,24 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   String _dayLabel(DateTime dt) {
+    // FIXED: removed unused `daysAr` variable
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const daysAr = ['أح', 'إث', 'ثل', 'أر', 'خم', 'جم', 'سب'];
     return days[dt.weekday % 7];
   }
 
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final isDark = locale.darkMode;
     final bgColor = isDark ? AppColors.darkBg : AppColors.background;
     final cardColor = isDark ? AppColors.darkCard : AppColors.cardBg;
     final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
     final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     final safeRate = _totalScanned == 0
         ? 0
@@ -81,7 +82,7 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
               child: Align(
                 alignment:
-                    isAr ? Alignment.centerRight : Alignment.centerLeft,
+                isAr ? Alignment.centerRight : Alignment.centerLeft,
                 child: Text(
                   t('stats'),
                   style: TextStyle(
@@ -141,8 +142,9 @@ class _StatsScreenState extends State<StatsScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
+                            // FIXED: withOpacity → withValues
                             color: Colors.black
-                                .withOpacity(isDark ? 0.3 : 0.06),
+                                .withValues(alpha: isDark ? 0.3 : 0.06),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -176,99 +178,99 @@ class _StatsScreenState extends State<StatsScreen> {
                             height: 180,
                             child: _weekly.isEmpty
                                 ? Center(
-                                    child: Text(
-                                      t('no_data'),
-                                      style: TextStyle(
-                                          color: textSecondary),
-                                    ),
-                                  )
+                              child: Text(
+                                t('no_data'),
+                                style: TextStyle(
+                                    color: textSecondary),
+                              ),
+                            )
                                 : BarChart(
-                                    BarChartData(
-                                      alignment:
-                                          BarChartAlignment.spaceAround,
-                                      maxY: _weekly
-                                              .map((e) =>
-                                                  (e['safe'] as int) +
-                                                  (e['danger'] as int))
-                                              .fold(0,
-                                                  (a, b) => a > b ? a : b)
-                                              .toDouble() +
-                                          2,
-                                      barTouchData:
-                                          BarTouchData(enabled: false),
-                                      titlesData: FlTitlesData(
-                                        leftTitles: const AxisTitles(
-                                          sideTitles: SideTitles(
-                                              showTitles: false),
-                                        ),
-                                        rightTitles: const AxisTitles(
-                                          sideTitles: SideTitles(
-                                              showTitles: false),
-                                        ),
-                                        topTitles: const AxisTitles(
-                                          sideTitles: SideTitles(
-                                              showTitles: false),
-                                        ),
-                                        bottomTitles: AxisTitles(
-                                          sideTitles: SideTitles(
-                                            showTitles: true,
-                                            getTitlesWidget: (val, _) {
-                                              final idx = val.toInt();
-                                              if (idx >= 0 &&
-                                                  idx < _weekly.length) {
-                                                return Text(
-                                                  _dayLabel(_weekly[idx]
-                                                      ['day']),
-                                                  style: TextStyle(
-                                                    color: textSecondary,
-                                                    fontSize: 11,
-                                                  ),
-                                                );
-                                              }
-                                              return const SizedBox();
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                      gridData: FlGridData(
-                                        drawVerticalLine: false,
-                                        getDrawingHorizontalLine: (v) =>
-                                            FlLine(
-                                          color: isDark
-                                              ? AppColors.darkDivider
-                                              : AppColors.divider,
-                                          strokeWidth: 1,
-                                        ),
-                                      ),
-                                      borderData: FlBorderData(show: false),
-                                      barGroups: List.generate(
-                                        _weekly.length,
-                                        (i) => BarChartGroupData(
-                                          x: i,
-                                          barRods: [
-                                            BarChartRodData(
-                                              toY: (_weekly[i]['safe']
-                                                      as int)
-                                                  .toDouble(),
-                                              color: AppColors.safe,
-                                              width: 10,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
+                              BarChartData(
+                                alignment:
+                                BarChartAlignment.spaceAround,
+                                maxY: _weekly
+                                    .map((e) =>
+                                (e['safe'] as int) +
+                                    (e['danger'] as int))
+                                    .fold(0,
+                                        (a, b) => a > b ? a : b)
+                                    .toDouble() +
+                                    2,
+                                barTouchData:
+                                BarTouchData(enabled: false),
+                                titlesData: FlTitlesData(
+                                  leftTitles: const AxisTitles(
+                                    sideTitles: SideTitles(
+                                        showTitles: false),
+                                  ),
+                                  rightTitles: const AxisTitles(
+                                    sideTitles: SideTitles(
+                                        showTitles: false),
+                                  ),
+                                  topTitles: const AxisTitles(
+                                    sideTitles: SideTitles(
+                                        showTitles: false),
+                                  ),
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      getTitlesWidget: (val, _) {
+                                        final idx = val.toInt();
+                                        if (idx >= 0 &&
+                                            idx < _weekly.length) {
+                                          return Text(
+                                            _dayLabel(_weekly[idx]
+                                            ['day']),
+                                            style: TextStyle(
+                                              color: textSecondary,
+                                              fontSize: 11,
                                             ),
-                                            BarChartRodData(
-                                              toY: (_weekly[i]['danger']
-                                                      as int)
-                                                  .toDouble(),
-                                              color: AppColors.danger,
-                                              width: 10,
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                          );
+                                        }
+                                        return const SizedBox();
+                                      },
                                     ),
                                   ),
+                                ),
+                                gridData: FlGridData(
+                                  drawVerticalLine: false,
+                                  getDrawingHorizontalLine: (v) =>
+                                      FlLine(
+                                        color: isDark
+                                            ? AppColors.darkDivider
+                                            : AppColors.divider,
+                                        strokeWidth: 1,
+                                      ),
+                                ),
+                                borderData: FlBorderData(show: false),
+                                barGroups: List.generate(
+                                  _weekly.length,
+                                      (i) => BarChartGroupData(
+                                    x: i,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: (_weekly[i]['safe']
+                                        as int)
+                                            .toDouble(),
+                                        color: AppColors.safe,
+                                        width: 10,
+                                        borderRadius:
+                                        BorderRadius.circular(4),
+                                      ),
+                                      BarChartRodData(
+                                        toY: (_weekly[i]['danger']
+                                        as int)
+                                            .toDouble(),
+                                        color: AppColors.danger,
+                                        width: 10,
+                                        borderRadius:
+                                        BorderRadius.circular(4),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -284,8 +286,9 @@ class _StatsScreenState extends State<StatsScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
+                            // FIXED: withOpacity → withValues
                             color: Colors.black
-                                .withOpacity(isDark ? 0.3 : 0.06),
+                                .withValues(alpha: isDark ? 0.3 : 0.06),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -307,7 +310,7 @@ class _StatsScreenState extends State<StatsScreen> {
                             Center(
                               child: Padding(
                                 padding:
-                                    const EdgeInsets.symmetric(vertical: 20),
+                                const EdgeInsets.symmetric(vertical: 20),
                                 child: Text(
                                   t('no_data'),
                                   style: TextStyle(color: textSecondary),
@@ -320,7 +323,7 @@ class _StatsScreenState extends State<StatsScreen> {
                               final domain = entry.value.key;
                               final count = entry.value.value;
                               final maxCount =
-                                  _topBlocked.first.value.toDouble();
+                              _topBlocked.first.value.toDouble();
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: Row(
@@ -329,8 +332,9 @@ class _StatsScreenState extends State<StatsScreen> {
                                       width: 28,
                                       height: 28,
                                       decoration: BoxDecoration(
+                                        // FIXED: withOpacity → withValues
                                         color: AppColors.danger
-                                            .withOpacity(0.1),
+                                            .withValues(alpha: 0.1),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Center(
@@ -348,7 +352,7 @@ class _StatsScreenState extends State<StatsScreen> {
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             domain,
@@ -361,16 +365,17 @@ class _StatsScreenState extends State<StatsScreen> {
                                           const SizedBox(height: 4),
                                           ClipRRect(
                                             borderRadius:
-                                                BorderRadius.circular(4),
+                                            BorderRadius.circular(4),
                                             child: LinearProgressIndicator(
                                               value: count / maxCount,
                                               minHeight: 6,
+                                              // FIXED: withOpacity → withValues
                                               backgroundColor: AppColors
                                                   .danger
-                                                  .withOpacity(0.15),
+                                                  .withValues(alpha: 0.15),
                                               valueColor:
-                                                  const AlwaysStoppedAnimation(
-                                                      AppColors.danger),
+                                              const AlwaysStoppedAnimation(
+                                                  AppColors.danger),
                                             ),
                                           ),
                                         ],
@@ -436,7 +441,8 @@ class _SummaryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+            // FIXED: withOpacity → withValues
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
