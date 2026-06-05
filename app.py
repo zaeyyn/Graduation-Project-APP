@@ -101,9 +101,9 @@ def check_google_safe_browsing(url: str):
         return None
 
 # ─────────────────────────────────────────────
-# 3rd CHECK: ML Model
+# 3rd CHECK: ML Model (Protective Mode — threshold 0.30)
 # ─────────────────────────────────────────────
-def check_ml_model(url: str, threshold: float = 0.55):
+def check_ml_model(url: str, threshold: float = 0.30):
     try:
         features = extract_features(url)
         feat_df  = pd.DataFrame([features])
@@ -131,16 +131,12 @@ def check_ml_model(url: str, threshold: float = 0.55):
         return 'SAFE', 0.0
 
 # ─────────────────────────────────────────────
-# Verdict Combination Logic — FIXED
+# Verdict Combination Logic
 #
 # Priority:
-#   1. If VT or GSB says DANGER → immediately DANGER (known threat databases)
-#   2. If ML score is high (>= 55%) → DANGER even if VT/GSB say SAFE
-#      (catches new/unlisted phishing that databases haven't indexed yet)
+#   1. If VT or GSB says DANGER → DANGER (known threat databases)
+#   2. If ML says DANGER → DANGER (catches new/unlisted phishing)
 #   3. Otherwise → SAFE
-#
-# This fixes the bug where VT=SAFE + GSB=SAFE would return SAFE
-# and completely ignore the ML model, even when ML detects danger.
 # ─────────────────────────────────────────────
 def combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob):
     if vt_result == 'DANGER' or gsb_result == 'DANGER':
@@ -153,6 +149,7 @@ def combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob):
 
     app.logger.info("Final verdict: SAFE (all checks passed)")
     return 'SAFE'
+
 # ─────────────────────────────────────────────
 # Health endpoint
 # ─────────────────────────────────────────────
@@ -181,7 +178,6 @@ def check():
     gsb_result              = check_google_safe_browsing(url)
     ml_verdict, danger_prob = check_ml_model(url)
 
-    # FIXED: pass danger_prob so combine_verdicts can use ML properly
     final_verdict = combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob)
     score         = round(float(danger_prob) * 100, 1)
 
@@ -209,7 +205,7 @@ def check():
 
 # ─────────────────────────────────────────────
 # Run
-# ───────────────────s──────────────────────────
+# ─────────────────────────────────────────────
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
