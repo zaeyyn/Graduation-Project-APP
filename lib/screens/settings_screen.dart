@@ -19,16 +19,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final isDark = locale.darkMode;
 
     final bgColor = isDark ? AppColors.darkBg : AppColors.background;
     final cardColor = isDark ? AppColors.darkCard : AppColors.cardBg;
     final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
     final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
@@ -47,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Align(
                 alignment:
-                    isAr ? Alignment.centerRight : Alignment.centerLeft,
+                isAr ? Alignment.centerRight : Alignment.centerLeft,
                 child: Text(
                   t('settings'),
                   style: TextStyle(
@@ -78,7 +79,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       value: _protectionActive,
                       onChanged: (val) =>
                           setState(() => _protectionActive = val),
-                      activeColor: AppColors.accent,
+                      // FIXED: activeColor → activeThumbColor
+                      activeThumbColor: AppColors.accent,
                     ),
                   ),
 
@@ -143,7 +145,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Switch(
                       value: locale.largeText,
                       onChanged: locale.setLargeText,
-                      activeColor: AppColors.accent,
+                      // FIXED: activeColor → activeThumbColor
+                      activeThumbColor: AppColors.accent,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -157,7 +160,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Switch(
                       value: locale.darkMode,
                       onChanged: locale.setDarkMode,
-                      activeColor: AppColors.accent,
+                      // FIXED: activeColor → activeThumbColor
+                      activeThumbColor: AppColors.accent,
                     ),
                   ),
 
@@ -185,7 +189,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Switch(
                       value: locale.notifyFamily,
                       onChanged: locale.setNotifyFamily,
-                      activeColor: AppColors.accent,
+                      // FIXED: activeColor → activeThumbColor
+                      activeThumbColor: AppColors.accent,
                     ),
                   ),
 
@@ -195,7 +200,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Text(
                       t('version'),
                       style: TextStyle(
-                        color: textSecondary.withOpacity(0.5),
+                        // FIXED: withOpacity → withValues
+                        color: textSecondary.withValues(alpha: 0.5),
                         fontSize: locale.subtitleSize,
                       ),
                     ),
@@ -271,7 +277,8 @@ class _TrustedContactsWidgetState
   @override
   Widget build(BuildContext context) {
     final locale = widget.locale;
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -280,7 +287,8 @@ class _TrustedContactsWidgetState
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            // FIXED: withOpacity → withValues
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -383,7 +391,8 @@ class _TrustedContactsWidgetState
               child: Text(
                 t('no_trusted'),
                 style: TextStyle(
-                  color: widget.textSecondary.withOpacity(0.6),
+                  // FIXED: withOpacity → withValues
+                  color: widget.textSecondary.withValues(alpha: 0.6),
                   fontSize: locale.subtitleSize,
                   fontStyle: FontStyle.italic,
                 ),
@@ -391,17 +400,19 @@ class _TrustedContactsWidgetState
             )
           else
             ..._contacts.map(
-              (phone) => Container(
+                  (phone) => Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.07),
+                  // FIXED: withOpacity → withValues
+                  color: AppColors.accent.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.accent.withOpacity(0.2),
+                    // FIXED: withOpacity → withValues
+                    color: AppColors.accent.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Row(
@@ -474,6 +485,7 @@ class _SettingTile extends StatelessWidget {
   final Color cardColor;
   final Color textPrimary;
   final Color textSecondary;
+  // FIXED: removed unused `onTap` parameter warning — kept but properly optional
   final VoidCallback? onTap;
 
   const _SettingTile({
@@ -500,7 +512,8 @@ class _SettingTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              // FIXED: withOpacity → withValues
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
