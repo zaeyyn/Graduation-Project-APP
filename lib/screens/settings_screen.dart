@@ -19,7 +19,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    // FIXED: use function declaration instead of variable assignment
     String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final isDark = locale.darkMode;
@@ -79,7 +78,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       value: _protectionActive,
                       onChanged: (val) =>
                           setState(() => _protectionActive = val),
-                      // FIXED: activeColor → activeThumbColor
                       activeThumbColor: AppColors.accent,
                     ),
                   ),
@@ -145,7 +143,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Switch(
                       value: locale.largeText,
                       onChanged: locale.setLargeText,
-                      // FIXED: activeColor → activeThumbColor
                       activeThumbColor: AppColors.accent,
                     ),
                   ),
@@ -160,7 +157,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Switch(
                       value: locale.darkMode,
                       onChanged: locale.setDarkMode,
-                      // FIXED: activeColor → activeThumbColor
                       activeThumbColor: AppColors.accent,
                     ),
                   ),
@@ -189,7 +185,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     trailing: Switch(
                       value: locale.notifyFamily,
                       onChanged: locale.setNotifyFamily,
-                      // FIXED: activeColor → activeThumbColor
                       activeThumbColor: AppColors.accent,
                     ),
                   ),
@@ -200,7 +195,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Text(
                       t('version'),
                       style: TextStyle(
-                        // FIXED: withOpacity → withValues
                         color: textSecondary.withValues(alpha: 0.5),
                         fontSize: locale.subtitleSize,
                       ),
@@ -277,7 +271,6 @@ class _TrustedContactsWidgetState
   @override
   Widget build(BuildContext context) {
     final locale = widget.locale;
-    // FIXED: use function declaration instead of variable assignment
     String t(String k) => AppTexts.get(k, locale.lang);
 
     return Container(
@@ -287,7 +280,6 @@ class _TrustedContactsWidgetState
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            // FIXED: withOpacity → withValues
             color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -391,7 +383,6 @@ class _TrustedContactsWidgetState
               child: Text(
                 t('no_trusted'),
                 style: TextStyle(
-                  // FIXED: withOpacity → withValues
                   color: widget.textSecondary.withValues(alpha: 0.6),
                   fontSize: locale.subtitleSize,
                   fontStyle: FontStyle.italic,
@@ -407,11 +398,9 @@ class _TrustedContactsWidgetState
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  // FIXED: withOpacity → withValues
                   color: AppColors.accent.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    // FIXED: withOpacity → withValues
                     color: AppColors.accent.withValues(alpha: 0.2),
                   ),
                 ),
@@ -477,6 +466,7 @@ class _SectionLabel extends StatelessWidget {
 }
 
 // ── Setting Tile ──
+// FIXED: removed onTap field, constructor param, and GestureDetector wrapper
 class _SettingTile extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -485,8 +475,6 @@ class _SettingTile extends StatelessWidget {
   final Color cardColor;
   final Color textPrimary;
   final Color textSecondary;
-  // FIXED: removed unused `onTap` parameter warning — kept but properly optional
-  final VoidCallback? onTap;
 
   const _SettingTile({
     required this.title,
@@ -496,59 +484,54 @@ class _SettingTile extends StatelessWidget {
     required this.cardColor,
     required this.textPrimary,
     required this.textSecondary,
-    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 2),
-        padding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              // FIXED: withOpacity → withValues
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.symmetric(
+          horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: locale.bodySize,
+                    color: textPrimary,
+                  ),
+                ),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
                   Text(
-                    title,
+                    subtitle,
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: locale.bodySize,
-                      color: textPrimary,
+                      color: textSecondary,
+                      fontSize: locale.subtitleSize,
                     ),
                   ),
-                  if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: textSecondary,
-                        fontSize: locale.subtitleSize,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-            trailing,
-          ],
-        ),
+          ),
+          trailing,
+        ],
       ),
     );
   }
