@@ -143,21 +143,16 @@ def check_ml_model(url: str, threshold: float = 0.55):
 # and completely ignore the ML model, even when ML detects danger.
 # ─────────────────────────────────────────────
 def combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob):
-    # Step 1: Known threat databases take highest priority
     if vt_result == 'DANGER' or gsb_result == 'DANGER':
         app.logger.info("Final verdict: DANGER (flagged by VT or GSB)")
         return 'DANGER'
 
-    # Step 2: ML always runs — high confidence overrides SAFE from databases
-    # This catches fresh phishing URLs not yet in VT/GSB databases
     if ml_verdict == 'DANGER':
         app.logger.info(f"Final verdict: DANGER (ML flagged with {round(danger_prob*100,1)}% danger score)")
         return 'DANGER'
 
-    # Step 3: All checks passed — safe
     app.logger.info("Final verdict: SAFE (all checks passed)")
     return 'SAFE'
-
 # ─────────────────────────────────────────────
 # Health endpoint
 # ─────────────────────────────────────────────
