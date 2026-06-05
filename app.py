@@ -30,6 +30,37 @@ model = joblib.load('models/model_improved.pkl')
 logging.info(f"Model loaded. Classes: {list(model.classes_)}")
 
 # ─────────────────────────────────────────────
+# Known safe domains — bypass ML for these
+# ─────────────────────────────────────────────
+KNOWN_SAFE_DOMAINS = {
+    'google.com', 'youtube.com', 'facebook.com', 'amazon.com',
+    'microsoft.com', 'apple.com', 'netflix.com', 'paypal.com',
+    'twitter.com', 'instagram.com', 'linkedin.com', 'github.com',
+    'wikipedia.org', 'reddit.com', 'yahoo.com', 'bing.com',
+    'live.com', 'outlook.com', 'office.com', 'windows.com',
+    'whatsapp.com', 'tiktok.com', 'snapchat.com', 'pinterest.com',
+    'twitch.tv', 'spotify.com', 'adobe.com', 'dropbox.com',
+    'icloud.com', 'amazonaws.com', 'cloudflare.com',
+}
+
+def is_known_safe_url(url: str) -> bool:
+    try:
+        host = url.split('//')[-1].split('/')[0].lower()
+        host = host.replace('www.', '')
+        # Check exact match
+        if host in KNOWN_SAFE_DOMAINS:
+            return True
+        # Check root domain (e.g. docs.google.com → google.com)
+        parts = host.split('.')
+        if len(parts) >= 2:
+            root = f"{parts[-2]}.{parts[-1]}"
+            if root in KNOWN_SAFE_DOMAINS:
+                return True
+    except Exception:
+        pass
+    return False
+
+# ─────────────────────────────────────────────
 # 1st CHECK: VirusTotal
 # ─────────────────────────────────────────────
 def check_virustotal(url: str):
@@ -102,8 +133,6 @@ def check_google_safe_browsing(url: str):
 
 # ─────────────────────────────────────────────
 # 3rd CHECK: ML Model
-# Uses safe_prob (class 0) to determine verdict
-# DANGER when safe_prob < 0.50
 # ─────────────────────────────────────────────
 def check_ml_model(url: str):
     try:
@@ -168,6 +197,22 @@ def check():
 
     url = data['url'].strip()
     app.logger.info(f"Checking URL: {url}")
+
+    # Fast path: known safe domains skip ML entirely
+    if is_known_safe_url(url):
+        app.logger.info(f"Known safe domain — skipping ML: {url}")
+        return jsonify({
+            "url":        url,
+            "verdict":    "SAFE",
+            "score":      0.0,
+            "message_en": "This link appears to be safe.",
+            "message_ar": "يبدو هذا الرابط آمناً.",
+            "details": {
+                "virustotal":           "skipped",
+                "google_safe_browsing": "skipped",
+                "ml_model":             "skipped (known safe domain)"
+            }
+        })
 
     vt_result               = check_virustotal(url)
     gsb_result              = check_google_safe_browsing(url)
