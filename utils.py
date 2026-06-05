@@ -81,19 +81,19 @@ def extract_features(url):
         'num_subdomains':      max(len(domain.split('.')) - 2, 0),
 
         'suspicious_words':    sum(1 for w in [
-                                   'login', 'verify', 'secure', 'account', 'update',
-                                   'banking', 'confirm', 'password', 'signin',
-                                   'webscr', 'free', 'lucky', 'service', 'access'
-                               ] if w in url_clean),
+            'login', 'verify', 'secure', 'account', 'update',
+            'banking', 'confirm', 'password', 'signin',
+            'webscr', 'free', 'lucky', 'service', 'access'
+        ] if w in url_clean),
 
         'digits_count':        sum(c.isdigit() for c in url_clean),
         'special_chars':       sum(1 for c in url_clean if c in '-_%@=~+'),
 
         'has_suspicious_tld':  1 if any(domain.endswith(t) for t in [
-                                   '.xyz', '.tk', '.ml', '.ga', '.cf', '.gq',
-                                   '.top', '.click', '.link', '.online', '.site',
-                                   '.icu', '.pw', '.cc', '.ru', '.cn'
-                               ]) else 0,
+            '.xyz', '.tk', '.ml', '.ga', '.cf', '.gq',
+            '.top', '.click', '.link', '.online', '.site',
+            '.icu', '.pw', '.cc', '.ru', '.cn'
+        ]) else 0,
 
         'domain_has_numbers':  1 if re.search(r'\d', domain) else 0,
         'has_multiple_subdomains': 1 if len(domain.split('.')) > 3 else 0,
@@ -102,8 +102,8 @@ def extract_features(url):
         'num_digits_domain':   sum(c.isdigit() for c in domain),
 
         'brand_impersonation': 1 if re.search(
-                                   r'(paypa1|g00gle|amaz0n|micros0ft|app1e|faceb00k|netfl1x)',
-                                   url_clean) else 0,
+            r'(paypa1|g00gle|amaz0n|micros0ft|app1e|faceb00k|netfl1x)',
+            url_clean) else 0,
 
         'long_domain':         1 if len(domain) > 30 else 0,
         'many_subdomains':     max(len(domain.split('.')) - 2, 0),
