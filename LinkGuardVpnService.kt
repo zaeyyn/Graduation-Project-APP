@@ -1,9 +1,15 @@
 package com.example.myapplication
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import java.io.FileInputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,7 +18,6 @@ class LinkGuardVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
 
-    // FIXED: @Volatile ensures isRunning is visible across threads immediately
     @Volatile
     private var isRunning = false
 
@@ -21,11 +26,51 @@ class LinkGuardVpnService : VpnService() {
         private const val TAG = "LinkGuard"
         private const val API_URL = "https://linkguard-api-yy7v.onrender.com/check"
         private const val TIMEOUT_MS = 15_000
+        private const val CHANNEL_ID = "linkguard_channel"
+        private const val NOTIFICATION_ID = 1
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Start as foreground service so Android doesn't kill it in background
+        startForeground(NOTIFICATION_ID, buildNotification())
         startVpn()
         return START_STICKY
+    }
+
+    // Creates notification channel required for Android 8+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "LinkGuard Protection",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "LinkGuard VPN protection status"
+                setShowBadge(false)
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    // Builds the persistent notification shown while VPN is active
+    private fun buildNotification(): Notification {
+        val openAppIntent = packageManager
+            .getLaunchIntentForPackage(packageName)
+            ?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE) }
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("LinkGuard Active")
+            .setContentText("Protecting your links in the background")
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setOngoing(true)
+            .setContentIntent(openAppIntent)
+            .build()
     }
 
     private fun startVpn() {
@@ -64,14 +109,12 @@ class LinkGuardVpnService : VpnService() {
         Thread {
             var connection: HttpURLConnection? = null
             try {
-                // FIXED: prepend https:// so the API receives a valid URL
                 val fullUrl = if (domain.startsWith("http")) domain else "https://$domain"
 
                 connection = URL(API_URL).openConnection() as HttpURLConnection
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.doOutput = true
-                // FIXED: set timeouts to prevent hanging forever
                 connection.connectTimeout = TIMEOUT_MS
                 connection.readTimeout = TIMEOUT_MS
 
@@ -84,25 +127,45 @@ class LinkGuardVpnService : VpnService() {
                 val json = org.json.JSONObject(response)
                 val verdict = json.getString("verdict")
 
+                // Show danger notification when threat detected
+                if (verdict == "DANGER") {
+                    showThreatNotification(domain)
+                }
+
                 val intent = Intent(ACTION_THREAT)
                 intent.putExtra("domain", domain)
                 intent.putExtra("verdict", verdict)
                 sendBroadcast(intent)
 
             } catch (e: Exception) {
-                // FIXED: use Log.e for errors so they're visible in error filters
                 Log.e(TAG, "checkDomain error for $domain: ${e.message}")
             } finally {
-                // FIXED: disconnect in finally so it always runs even on exception
                 connection?.disconnect()
             }
         }.start()
     }
 
+    // Shows a danger notification when a threat is detected
+    private fun showThreatNotification(domain: String) {
+        val openAppIntent = packageManager
+            .getLaunchIntentForPackage(packageName)
+            ?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE) }
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("⚠️ Dangerous Link Blocked!")
+            .setContentText("$domain was blocked for your safety")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(openAppIntent)
+            .build()
+
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID + 1, notification)
+    }
+
     private fun extractDomain(data: ByteArray, length: Int): String? {
         return try {
-            // Note: offset 40 assumes IPv4 (20 bytes) + UDP (8 bytes) + DNS header (12 bytes)
-            // This won't work for TCP or IPv6 packets
             if (length < 40) return null
             var i = 40
             val sb = StringBuilder()
@@ -127,6 +190,7 @@ class LinkGuardVpnService : VpnService() {
     override fun onDestroy() {
         isRunning = false
         vpnInterface?.close()
+        stopForeground(STOP_FOREGROUND_REMOVE)
         Log.d(TAG, "VPN service destroyed")
     }
 }
