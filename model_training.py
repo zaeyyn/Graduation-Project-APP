@@ -1,211 +1,71 @@
-import joblib
 import pandas as pd
-from flask import Flask, request, jsonify
-from utils import extract_features
-import logging
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import xgboost as xgb
+import joblib
 import os
-import requests
+from utils import extract_features
 
-# ─────────────────────────────────────────────
-# Logging
-# ─────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 
-app = Flask(__name__)
+def main():
+    print("Loading dataset...")
+    df = pd.read_csv('malicious_phish.csv')
 
-# ─────────────────────────────────────────────
-# API Keys
-# ─────────────────────────────────────────────
-VIRUSTOTAL_KEY = os.environ.get('VIRUSTOTAL_KEY', '')
-GOOGLE_SB_KEY  = os.environ.get('GOOGLE_SB_KEY', '')
+    df['label'] = df['type'].apply(lambda x: 0 if x == 'benign' else 1)
 
-# ─────────────────────────────────────────────
-# Load ML model
-# ─────────────────────────────────────────────
-logging.info("Loading model...")
-model = joblib.load('models/model_improved.pkl')
-logging.info(f"Model loaded. Classes: {list(model.classes_)}")
+    print("Extracting features... this might take a few minutes...")
+    features = df['url'].apply(extract_features)
+    X = pd.DataFrame(features.tolist())
+    y = df['label']
 
-# ─────────────────────────────────────────────
-# 1st CHECK: VirusTotal
-# ─────────────────────────────────────────────
-def check_virustotal(url: str):
-    if not VIRUSTOTAL_KEY:
-        app.logger.warning("VirusTotal API key not configured — skipping.")
-        return None
-    try:
-        headers  = {"x-apikey": VIRUSTOTAL_KEY}
-        response = requests.post(
-            "https://www.virustotal.com/api/v3/urls",
-            headers=headers,
-            data={"url": url},
-            timeout=10
-        )
-        if response.status_code != 200:
-            app.logger.warning(f"VirusTotal submit failed: {response.status_code}")
-            return None
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
 
-        analysis_id = response.json()["data"]["id"]
-        result      = requests.get(
-            f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
-            headers=headers,
-            timeout=10
-        )
-        if result.status_code != 200:
-            return None
+    scale_weight = float((y_train == 0).sum() / (y_train == 1).sum())
+    print(f"Assigning scale_pos_weight: {scale_weight:.2f}")
 
-        stats      = result.json()["data"]["attributes"]["stats"]
-        malicious  = stats.get("malicious", 0)
-        suspicious = stats.get("suspicious", 0)
-        app.logger.info(f"VirusTotal → malicious={malicious}, suspicious={suspicious}")
+    model = xgb.XGBClassifier(
+        n_estimators=300,
+        max_depth=8,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        min_child_weight=5,
+        scale_pos_weight=scale_weight,
+        eval_metric='logloss',
+        random_state=42
+    )
 
-        return 'DANGER' if (malicious >= 2 or suspicious >= 3) else 'SAFE'
+    model.fit(
+        X_train, y_train,
+        eval_set=[(X_test, y_test)],
+        verbose=50
+    )
+    print("Training complete.")
 
-    except Exception as e:
-        app.logger.error(f"VirusTotal error: {e}")
-        return None
+    y_prob = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_prob >= 0.50).astype(int)
 
-# ─────────────────────────────────────────────
-# 2nd CHECK: Google Safe Browsing
-# ─────────────────────────────────────────────
-def check_google_safe_browsing(url: str):
-    if not GOOGLE_SB_KEY:
-        app.logger.warning("Google Safe Browsing API key not configured — skipping.")
-        return None
-    try:
-        endpoint = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={GOOGLE_SB_KEY}"
-        payload  = {
-            "client": {"clientId": "linkguard", "clientVersion": "1.0.0"},
-            "threatInfo": {
-                "threatTypes":      ["MALWARE", "SOCIAL_ENGINEERING",
-                                     "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
-                "platformTypes":    ["ANY_PLATFORM"],
-                "threatEntryTypes": ["URL"],
-                "threatEntries":    [{"url": url}]
-            }
-        }
-        response = requests.post(endpoint, json=payload, timeout=10)
-        if response.status_code != 200:
-            app.logger.warning(f"GSB failed: {response.status_code}")
-            return None
+    accuracy  = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred)
+    recall    = recall_score(y_test, y_pred)
+    f1        = f1_score(y_test, y_pred)
+    cm        = confusion_matrix(y_test, y_pred)
+    TN = cm[0][0]
+    FP = cm[0][1]
+    fpr = FP / (FP + TN)
 
-        data = response.json()
-        app.logger.info(f"Google Safe Browsing → matches={bool(data.get('matches'))}")
-        return 'DANGER' if data.get("matches") else 'SAFE'
+    print(f"Accuracy:            {accuracy:.4f}  ({accuracy*100:.2f}%)")
+    print(f"Precision:           {precision:.4f}")
+    print(f"Recall:              {recall:.4f}")
+    print(f"F1 Score:            {f1:.4f}")
+    print(f"False Positive Rate: {fpr:.4f}  ({fpr*100:.2f}%)")
 
-    except Exception as e:
-        app.logger.error(f"Google Safe Browsing error: {e}")
-        return None
+    os.makedirs('models', exist_ok=True)
+    joblib.dump(model, 'models/model_improved.pkl')
+    print("Model saved as models/model_improved.pkl")
 
-# ─────────────────────────────────────────────
-# 3rd CHECK: ML Model (Protective Mode — threshold 0.30)
-# ─────────────────────────────────────────────
-def check_ml_model(url: str, threshold: float = 0.30):
-    try:
-        features = extract_features(url)
-        feat_df  = pd.DataFrame([features])
-        probs    = model.predict_proba(feat_df)[0]
-        classes  = list(model.classes_)
 
-        app.logger.info(f"ML classes: {classes}")
-        app.logger.info(f"ML probs:   {dict(zip(classes, probs))}")
-
-        if 1 in classes:
-            danger_prob = probs[classes.index(1)]
-        elif 'phishing' in classes:
-            danger_prob = probs[classes.index('phishing')]
-        elif 'malicious' in classes:
-            danger_prob = probs[classes.index('malicious')]
-        else:
-            danger_prob = probs[-1]
-
-        verdict = 'DANGER' if danger_prob >= threshold else 'SAFE'
-        app.logger.info(f"ML → danger_prob={round(danger_prob * 100, 1)}%, verdict={verdict}")
-        return verdict, danger_prob
-
-    except Exception as e:
-        app.logger.error(f"ML model error: {e}")
-        return 'SAFE', 0.0
-
-# ─────────────────────────────────────────────
-# Verdict Combination Logic
-#
-# Priority:
-#   1. If VT or GSB says DANGER → DANGER (known threat databases)
-#   2. If ML says DANGER → DANGER (catches new/unlisted phishing)
-#   3. Otherwise → SAFE
-# ─────────────────────────────────────────────
-def combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob):
-    if vt_result == 'DANGER' or gsb_result == 'DANGER':
-        app.logger.info("Final verdict: DANGER (flagged by VT or GSB)")
-        return 'DANGER'
-
-    if ml_verdict == 'DANGER':
-        app.logger.info(f"Final verdict: DANGER (ML flagged with {round(danger_prob*100,1)}% danger score)")
-        return 'DANGER'
-
-    app.logger.info("Final verdict: SAFE (all checks passed)")
-    return 'SAFE'
-
-# ─────────────────────────────────────────────
-# Health endpoint
-# ─────────────────────────────────────────────
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({
-        "status": "ok",
-        "model":  "loaded",
-        "virustotal_configured":           bool(VIRUSTOTAL_KEY),
-        "google_safe_browsing_configured": bool(GOOGLE_SB_KEY)
-    })
-
-# ─────────────────────────────────────────────
-# Main check endpoint
-# ─────────────────────────────────────────────
-@app.route('/check', methods=['POST'])
-def check():
-    data = request.get_json(silent=True)
-    if not data or 'url' not in data:
-        return jsonify({"error": "No url provided"}), 400
-
-    url = data['url'].strip()
-    app.logger.info(f"Checking URL: {url}")
-
-    vt_result               = check_virustotal(url)
-    gsb_result              = check_google_safe_browsing(url)
-    ml_verdict, danger_prob = check_ml_model(url)
-
-    final_verdict = combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob)
-    score         = round(float(danger_prob) * 100, 1)
-
-    if final_verdict == 'SAFE':
-        message_en = "This link appears to be safe."
-        message_ar = "يبدو هذا الرابط آمناً."
-    else:
-        message_en = "This link is dangerous. Do not proceed."
-        message_ar = "هذا الرابط خطير. لا تكمل."
-
-    app.logger.info(f"URL={url} | VT={vt_result} | GSB={gsb_result} | ML={ml_verdict}({round(danger_prob*100,1)}%) | FINAL={final_verdict}")
-
-    return jsonify({
-        "url":        url,
-        "verdict":    final_verdict,
-        "score":      score,
-        "message_en": message_en,
-        "message_ar": message_ar,
-        "details": {
-            "virustotal":           vt_result  or "unavailable",
-            "google_safe_browsing": gsb_result or "unavailable",
-            "ml_model":             ml_verdict
-        }
-    })
-
-# ─────────────────────────────────────────────
-# Run
-# ─────────────────────────────────────────────
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+if __name__ == "__main__":
+    main()
