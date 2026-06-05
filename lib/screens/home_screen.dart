@@ -14,7 +14,6 @@ import '../services/vpn_service.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -73,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final domain = Uri.tryParse(url)?.host ?? url;
 
       final verdictStr =
-          result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
+      result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
 
       await HistoryService.addEntry(
         LinkEntry(
@@ -117,14 +116,15 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
   }
+
   void _showSafeSnackbar(String lang, {bool trusted = false}) {
-    final isDark = context.read<AppLocale>().darkMode;
+    // FIXED: removed unused `isDark` variable
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: trusted ? AppColors.primaryLight : AppColors.safe,
         behavior: SnackBarBehavior.floating,
         shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 3),
         content: Row(
@@ -153,11 +153,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     trusted
                         ? (lang == 'ar'
-                            ? 'هذا الموقع في قائمتك الموثوقة'
-                            : 'This site is in your trusted list')
+                        ? 'هذا الموقع في قائمتك الموثوقة'
+                        : 'This site is in your trusted list')
                         : AppTexts.get('safe_notif_body', lang),
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      // FIXED: withOpacity → withValues
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 13,
                     ),
                   ),
@@ -173,16 +174,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final isDark = locale.darkMode;
 
     final bgColor = isDark ? AppColors.darkBg : AppColors.background;
     final cardColor = isDark ? AppColors.darkCard : AppColors.cardBg;
     final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
     final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
@@ -208,7 +210,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         t('protection_is'),
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          // FIXED: withOpacity → withValues
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: locale.subtitleSize,
                         ),
                       ),
@@ -228,10 +231,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 7),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        // FIXED: withOpacity → withValues
+                        color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.3)),
+                          // FIXED: withOpacity → withValues
+                            color: Colors.white.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         isAr ? 'EN | AR' : 'AR | EN',
@@ -261,8 +266,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
+                            // FIXED: withOpacity → withValues
                             color: Colors.black
-                                .withOpacity(isDark ? 0.3 : 0.06),
+                                .withValues(alpha: isDark ? 0.3 : 0.06),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -275,8 +281,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             height: 80,
                             decoration: BoxDecoration(
                               color: _protectionActive
-                                  ? AppColors.accent.withOpacity(0.1)
-                                  : Colors.grey.withOpacity(0.1),
+                              // FIXED: withOpacity → withValues
+                                  ? AppColors.accent.withValues(alpha: 0.1)
+                              // FIXED: withOpacity → withValues
+                                  : Colors.grey.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: _protectionActive
@@ -323,11 +331,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             child: Row(
                               mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              MainAxisAlignment.spaceBetween,
                               children: [
                                 Column(
                                   crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       t('protection_active'),
@@ -356,7 +364,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       await VpnChannel.stopVpn();
                                     }
                                   },
-                                  activeColor: AppColors.accent,
+                                  // FIXED: activeColor → activeThumbColor
+                                  activeThumbColor: AppColors.accent,
                                 ),
                               ],
                             ),
@@ -420,14 +429,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               onPressed: _isChecking
                                   ? null
                                   : () => checkLink(
-                                      'http://paypa1-verify.net/secure/login'),
+                                  'http://paypa1-verify.net/secure/login'),
                               icon: _isChecking
                                   ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2),
+                              )
                                   : const Icon(Icons.bug_report_outlined),
                               label: Text(
                                 'Test Dangerous Link',
@@ -498,7 +507,8 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+            // FIXED: withOpacity → withValues
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
