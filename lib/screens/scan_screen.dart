@@ -99,18 +99,25 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final isDark = locale.darkMode;
 
     final bgColor = isDark ? AppColors.darkBg : AppColors.background;
     final cardColor = isDark ? AppColors.darkCard : AppColors.cardBg;
     final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
     final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
@@ -199,26 +206,26 @@ class _ScanScreenState extends State<ScanScreen> {
                               onPressed: _scanning ? null : _scan,
                               icon: _scanning
                                   ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
                                   : const Icon(Icons.search),
                               label: Text(
                                 _scanning
                                     ? t('checking')
                                     : t('check_link'),
                                 style:
-                                    TextStyle(fontSize: locale.bodySize),
+                                TextStyle(fontSize: locale.bodySize),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
                                 foregroundColor: Colors.white,
                                 padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
+                                const EdgeInsets.symmetric(vertical: 14),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -240,8 +247,9 @@ class _ScanScreenState extends State<ScanScreen> {
                           color: cardColor,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
+                            // FIXED: withOpacity → withValues
                             color: _verdictColor(_result!.verdict)
-                                .withOpacity(0.4),
+                                .withValues(alpha: 0.4),
                             width: 1.5,
                           ),
                         ),
@@ -279,7 +287,7 @@ class _ScanScreenState extends State<ScanScreen> {
                               children: [
                                 Row(
                                   mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       t('threat_score'),
