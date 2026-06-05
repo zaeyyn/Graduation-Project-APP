@@ -101,7 +101,7 @@ def check_google_safe_browsing(url: str):
         return None
 
 # ─────────────────────────────────────────────
-# 3rd CHECK: ML Model (fallback only)
+# 3rd CHECK: ML Model
 # ─────────────────────────────────────────────
 def check_ml_model(url: str, threshold: float = 0.55):
     try:
@@ -131,33 +131,43 @@ def check_ml_model(url: str, threshold: float = 0.55):
         return 'SAFE', 0.0
 
 # ─────────────────────────────────────────────
-# Verdict Combination Logic
+# Verdict Combination Logic — FIXED
+#
+# Priority:
+#   1. If VT or GSB says DANGER → immediately DANGER (known threat databases)
+#   2. If ML score is high (>= 55%) → DANGER even if VT/GSB say SAFE
+#      (catches new/unlisted phishing that databases haven't indexed yet)
+#   3. Otherwise → SAFE
+#
+# This fixes the bug where VT=SAFE + GSB=SAFE would return SAFE
+# and completely ignore the ML model, even when ML detects danger.
 # ─────────────────────────────────────────────
-def combine_verdicts(vt_result, gsb_result, ml_verdict):
+def combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob):
+    # Step 1: Known threat databases take highest priority
     if vt_result == 'DANGER' or gsb_result == 'DANGER':
+        app.logger.info("Final verdict: DANGER (flagged by VT or GSB)")
         return 'DANGER'
 
-    if vt_result == 'SAFE' and gsb_result == 'SAFE':
-        return 'SAFE'
+    # Step 2: ML always runs — high confidence overrides SAFE from databases
+    # This catches fresh phishing URLs not yet in VT/GSB databases
+    if ml_verdict == 'DANGER':
+        app.logger.info(f"Final verdict: DANGER (ML flagged with {round(danger_prob*100,1)}% danger score)")
+        return 'DANGER'
 
-    if vt_result == 'SAFE' or gsb_result == 'SAFE':
-        return ml_verdict
-
-    app.logger.info("VT and GSB both unavailable — using ML verdict only.")
-    return ml_verdict
+    # Step 3: All checks passed — safe
+    app.logger.info("Final verdict: SAFE (all checks passed)")
+    return 'SAFE'
 
 # ─────────────────────────────────────────────
 # Health endpoint
 # ─────────────────────────────────────────────
 @app.route('/health', methods=['GET'])
 def health():
-    vt_configured  = bool(VIRUSTOTAL_KEY)
-    gsb_configured = bool(GOOGLE_SB_KEY)
     return jsonify({
         "status": "ok",
         "model":  "loaded",
-        "virustotal_configured":      vt_configured,
-        "google_safe_browsing_configured": gsb_configured
+        "virustotal_configured":           bool(VIRUSTOTAL_KEY),
+        "google_safe_browsing_configured": bool(GOOGLE_SB_KEY)
     })
 
 # ─────────────────────────────────────────────
@@ -176,15 +186,18 @@ def check():
     gsb_result              = check_google_safe_browsing(url)
     ml_verdict, danger_prob = check_ml_model(url)
 
-    final_verdict = combine_verdicts(vt_result, gsb_result, ml_verdict)
+    # FIXED: pass danger_prob so combine_verdicts can use ML properly
+    final_verdict = combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob)
     score         = round(float(danger_prob) * 100, 1)
 
     if final_verdict == 'SAFE':
         message_en = "This link appears to be safe."
         message_ar = "يبدو هذا الرابط آمناً."
     else:
-        message_en = "This link is dangerous."
-        message_ar = "هذا الرابط خطير."
+        message_en = "This link is dangerous. Do not proceed."
+        message_ar = "هذا الرابط خطير. لا تكمل."
+
+    app.logger.info(f"URL={url} | VT={vt_result} | GSB={gsb_result} | ML={ml_verdict}({round(danger_prob*100,1)}%) | FINAL={final_verdict}")
 
     return jsonify({
         "url":        url,
@@ -193,9 +206,9 @@ def check():
         "message_en": message_en,
         "message_ar": message_ar,
         "details": {
-            "virustotal":                vt_result  or "unavailable",
-            "google_safe_browsing":      gsb_result or "unavailable",
-            "ml_model":                  ml_verdict
+            "virustotal":           vt_result  or "unavailable",
+            "google_safe_browsing": gsb_result or "unavailable",
+            "ml_model":             ml_verdict
         }
     })
 
