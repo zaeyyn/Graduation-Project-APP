@@ -9,31 +9,65 @@ def calc_entropy(s):
     p, lns = Counter(s), float(len(s))
     return -sum(count/lns * math.log2(count/lns) for count in p.values())
 
-top_brands = ['paypal', 'google', 'amazon', 'microsoft', 'apple', 'facebook', 'netflix']
+top_brands = ['paypal', 'google', 'amazon', 'microsoft', 'apple', 'facebook', 'netflix', 'youtube']
+
+# Known legitimate domains that should never be flagged
+KNOWN_SAFE_DOMAINS = {
+    'google.com', 'youtube.com', 'facebook.com', 'amazon.com',
+    'microsoft.com', 'apple.com', 'netflix.com', 'paypal.com',
+    'twitter.com', 'instagram.com', 'linkedin.com', 'github.com',
+    'wikipedia.org', 'reddit.com', 'yahoo.com', 'bing.com',
+    'live.com', 'outlook.com', 'office.com', 'windows.com',
+    'docs.google.com', 'drive.google.com', 'mail.google.com',
+    'maps.google.com', 'play.google.com', 'accounts.google.com',
+}
+
+def get_root_domain(domain):
+    """Extract root domain e.g. docs.google.com -> google.com"""
+    parts = domain.split('.')
+    if len(parts) >= 2:
+        return f"{parts[-2]}.{parts[-1]}"
+    return domain
 
 def get_impersonation_score(domain, brands):
-    """
-    Returns a similarity score only for near-matches, not exact matches.
-    Exact matches (real brands) return 0 — they're not impersonators.
-    """
-    # Use the registrable part only (strip TLD) to compare against brand names
     parts = domain.split('.')
-    base = parts[-2] if len(parts) >= 2 else domain  # e.g. "paypal" from "paypal.com"
+    base = parts[-2] if len(parts) >= 2 else domain
 
     scores = []
     for brand in brands:
         ratio = difflib.SequenceMatcher(None, base, brand).ratio()
-        # Exact match = legitimate brand domain, not impersonation
         if base == brand:
             scores.append(0.0)
         else:
             scores.append(ratio)
     return max(scores)
 
+def is_known_safe(domain):
+    """Returns 1 if domain is a known legitimate domain"""
+    domain = domain.lower().replace('www.', '')
+    root = get_root_domain(domain)
+    if domain in KNOWN_SAFE_DOMAINS:
+        return 1
+    if root in KNOWN_SAFE_DOMAINS:
+        return 1
+    # Check if root domain matches a brand exactly
+    parts = domain.split('.')
+    if len(parts) >= 2:
+        base = parts[-2]
+        if base in [b for b in top_brands]:
+            tld = parts[-1]
+            if tld in ['com', 'org', 'net', 'edu', 'gov', 'io', 'co']:
+                return 1
+    return 0
+
 def extract_features(url):
     url = str(url).lower().strip()
     url_clean = re.sub(r'https?://', '', url)
     domain = url_clean.split('/')[0]
+    domain_no_www = domain.replace('www.', '')
+
+    # Check if this is a known safe domain
+    known_safe = is_known_safe(domain_no_www)
 
     return {
         'url_length':          len(url_clean),
@@ -46,7 +80,6 @@ def extract_features(url):
         'num_at':              url_clean.count('@'),
         'num_subdomains':      max(len(domain.split('.')) - 2, 0),
 
-        # Brand names removed — they're captured by brand_similarity/brand_impersonation
         'suspicious_words':    sum(1 for w in [
                                    'login', 'verify', 'secure', 'account', 'update',
                                    'banking', 'confirm', 'password', 'signin',
@@ -68,7 +101,6 @@ def extract_features(url):
         'double_slash':        1 if '//' in url_clean else 0,
         'num_digits_domain':   sum(c.isdigit() for c in domain),
 
-        # Leet-speak / typosquatting patterns
         'brand_impersonation': 1 if re.search(
                                    r'(paypa1|g00gle|amaz0n|micros0ft|app1e|faceb00k|netfl1x)',
                                    url_clean) else 0,
@@ -77,7 +109,19 @@ def extract_features(url):
         'many_subdomains':     max(len(domain.split('.')) - 2, 0),
         'path_length':         len(url_clean.split('/', 1)[1]) if '/' in url_clean else 0,
         'char_entropy':        calc_entropy(url_clean),
-
-        # Fixed: real brand domains now score 0, near-matches score high
         'brand_similarity':    get_impersonation_score(domain, top_brands),
+
+        # NEW: directly flags known legitimate domains
+        # This prevents the model from flagging google.com, youtube.com etc.
+        'is_known_safe_domain': known_safe,
+
+        # NEW: ratio of digits to total URL length (phishing URLs tend to have more digits)
+        'digit_ratio':         sum(c.isdigit() for c in url_clean) / max(len(url_clean), 1),
+
+        # NEW: number of suspicious TLD-like patterns in the path
+        'has_brand_in_subdomain': 1 if any(
+            brand in domain.split('.')[0]
+            for brand in top_brands
+            if domain.split('.')[0] != brand
+        ) else 0,
     }
