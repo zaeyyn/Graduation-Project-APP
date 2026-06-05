@@ -33,14 +33,73 @@ logging.info(f"Model loaded. Classes: {list(model.classes_)}")
 # Known safe domains — bypass ML for these
 # ─────────────────────────────────────────────
 KNOWN_SAFE_DOMAINS = {
-    'google.com', 'youtube.com', 'facebook.com', 'amazon.com',
-    'microsoft.com', 'apple.com', 'netflix.com', 'paypal.com',
-    'twitter.com', 'instagram.com', 'linkedin.com', 'github.com',
-    'wikipedia.org', 'reddit.com', 'yahoo.com', 'bing.com',
-    'live.com', 'outlook.com', 'office.com', 'windows.com',
-    'whatsapp.com', 'tiktok.com', 'snapchat.com', 'pinterest.com',
-    'twitch.tv', 'spotify.com', 'adobe.com', 'dropbox.com',
-    'icloud.com', 'amazonaws.com', 'cloudflare.com',
+    # Search & Google
+    'google.com', 'gmail.com', 'youtube.com', 'docs.google.com',
+    'drive.google.com', 'maps.google.com', 'play.google.com',
+    'accounts.google.com', 'mail.google.com', 'google.co.uk',
+    'google.com.au', 'google.ca', 'google.de', 'google.fr',
+
+    # Social Media
+    'facebook.com', 'instagram.com', 'twitter.com', 'x.com',
+    'linkedin.com', 'tiktok.com', 'snapchat.com', 'pinterest.com',
+    'reddit.com', 'tumblr.com', 'quora.com', 'discord.com',
+    'telegram.org', 'whatsapp.com', 'signal.org',
+
+    # Microsoft
+    'microsoft.com', 'live.com', 'outlook.com', 'office.com',
+    'windows.com', 'xbox.com', 'azure.com', 'bing.com',
+    'office365.com', 'sharepoint.com', 'teams.microsoft.com',
+
+    # Apple
+    'apple.com', 'icloud.com', 'itunes.com', 'appstore.com',
+
+    # Amazon
+    'amazon.com', 'amazon.co.uk', 'amazon.de', 'amazon.fr',
+    'amazonaws.com', 'aws.amazon.com', 'prime.amazon.com',
+
+    # Entertainment
+    'netflix.com', 'spotify.com', 'twitch.tv', 'hulu.com',
+    'disneyplus.com', 'hbomax.com', 'primevideo.com',
+    'soundcloud.com', 'vimeo.com', 'dailymotion.com',
+
+    # Tech & Dev
+    'github.com', 'gitlab.com', 'stackoverflow.com', 'stackexchange.com',
+    'digitalocean.com', 'cloudflare.com', 'heroku.com', 'vercel.com',
+    'netlify.com', 'firebase.google.com', 'developer.apple.com',
+    'developer.android.com', 'npmjs.com', 'pypi.org', 'docker.com',
+
+    # News & Media
+    'bbc.com', 'bbc.co.uk', 'cnn.com', 'nytimes.com', 'theguardian.com',
+    'reuters.com', 'apnews.com', 'washingtonpost.com', 'forbes.com',
+    'bloomberg.com', 'techcrunch.com', 'theverge.com', 'wired.com',
+    'arstechnica.com', 'engadget.com', 'zdnet.com',
+
+    # Finance
+    'paypal.com', 'stripe.com', 'wise.com', 'revolut.com',
+    'chase.com', 'bankofamerica.com', 'wellsfargo.com', 'citibank.com',
+
+    # Shopping
+    'ebay.com', 'etsy.com', 'shopify.com', 'aliexpress.com',
+    'walmart.com', 'target.com', 'bestbuy.com',
+
+    # Education
+    'wikipedia.org', 'khan academy.org', 'coursera.org', 'udemy.com',
+    'edx.org', 'mit.edu', 'harvard.edu', 'stanford.edu',
+    'khanacademy.org', 'duolingo.com',
+
+    # Hosting & Domains
+    'godaddy.com', 'namecheap.com', 'hostinger.com', 'bluehost.com',
+    'siteground.com', 'hostgator.com', 'domain.com', 'hover.com',
+
+    # Tools & Productivity
+    'dropbox.com', 'box.com', 'notion.so', 'trello.com', 'slack.com',
+    'zoom.us', 'canva.com', 'figma.com', 'adobe.com', 'atlassian.com',
+    'jira.atlassian.com', 'confluence.atlassian.com',
+
+    # Other popular
+    'yahoo.com', 'ymail.com', 'flickr.com', 'deviantart.com',
+    'medium.com', 'substack.com', 'wordpress.com', 'wix.com',
+    'squarespace.com', 'weebly.com',
 }
 
 def is_known_safe_url(url: str) -> bool:
