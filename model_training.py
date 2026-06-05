@@ -1,17 +1,24 @@
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 import xgboost as xgb
 import joblib
 import os
-from utils import extract_features
+from utils import extract_features, KNOWN_LEGITIMATE_DOMAINS
 
 
 def main():
     print("Loading dataset...")
     df = pd.read_csv('malicious_phish.csv')
 
-    df['label'] = df['type'].apply(lambda x: 0 if x == 'benign' else 1)
+    # New dataset: status 0 = phishing (dangerous), status 1 = legitimate (safe)
+    # Flipped to our convention: 0 = safe, 1 = dangerous
+    df['label'] = df['status'].apply(lambda x: 0 if x == 1 else 1)
+
+    print(f"Dataset loaded: {len(df)} URLs")
+    print(f"Safe (label=0): {(df['label']==0).sum()}")
+    print(f"Dangerous (label=1): {(df['label']==1).sum()}")
 
     print("Extracting features... this might take a few minutes...")
     features = df['url'].apply(extract_features)
@@ -26,7 +33,7 @@ def main():
     print(f"Assigning scale_pos_weight: {scale_weight:.2f}")
 
     model = xgb.XGBClassifier(
-        n_estimators=301,
+        n_estimators=300,
         max_depth=8,
         learning_rate=0.05,
         subsample=0.8,
@@ -37,8 +44,15 @@ def main():
         random_state=42
     )
 
+    # Give 20x weight to legitimate domain samples to strongly reduce false positives
+    sample_weights = np.ones(len(y_train))
+    legitimate_mask = X_train['is_legitimate_domain'] == 1
+    sample_weights[legitimate_mask] = 20.0
+    print(f"Boosting {legitimate_mask.sum()} known legitimate domain samples with 20x weight")
+
     model.fit(
         X_train, y_train,
+        sample_weight=sample_weights,
         eval_set=[(X_test, y_test)],
         verbose=50
     )
