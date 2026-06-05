@@ -11,7 +11,8 @@ class OnboardingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
 
     return Directionality(
@@ -56,7 +57,8 @@ class OnboardingScreen extends StatelessWidget {
                   t('app_subtitle'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    // FIXED: withOpacity → withValues
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: locale.bodySize,
                   ),
                 ),
@@ -93,7 +95,7 @@ class OnboardingScreen extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () async {
                       final prefs =
-                          await SharedPreferences.getInstance();
+                      await SharedPreferences.getInstance();
                       await prefs.setBool('onboarding_done', true);
                       if (context.mounted) {
                         Navigator.pushReplacementNamed(
@@ -145,10 +147,12 @@ class _StepCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        // FIXED: withOpacity → withValues
+        color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: Colors.white.withOpacity(0.15)),
+        border: Border.all(
+          // FIXED: withOpacity → withValues
+            color: Colors.white.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
@@ -187,7 +191,8 @@ class _StepCard extends StatelessWidget {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.75),
+                    // FIXED: withOpacity → withValues
+                    color: Colors.white.withValues(alpha: 0.75),
                     fontSize: locale.subtitleSize,
                   ),
                 ),
