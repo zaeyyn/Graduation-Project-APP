@@ -17,10 +17,17 @@ class DangerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final domain = Uri.tryParse(url)?.host ?? url;
-    final percent = (threatScore * 100).toInt();
+
+    // FIXED: threatScore is already 0–100 from the API (e.g. 98.6)
+    // so we just round it directly instead of multiplying by 100 again
+    final percent = threatScore.toInt().clamp(0, 100);
+
+    // FIXED: progress bar also needs 0.0–1.0 range, so divide by 100
+    final progressValue = (threatScore / 100).clamp(0.0, 1.0);
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
@@ -29,7 +36,7 @@ class DangerScreen extends StatelessWidget {
         body: SafeArea(
           child: Padding(
             padding:
-                const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -40,7 +47,8 @@ class DangerScreen extends StatelessWidget {
                   width: 110,
                   height: 110,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    // FIXED: withOpacity → withValues
+                    color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -67,7 +75,8 @@ class DangerScreen extends StatelessWidget {
                   t('danger_subtitle'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
+                    // FIXED: withOpacity → withValues
+                    color: Colors.white.withValues(alpha: 0.85),
                     fontSize: locale.bodySize + 2,
                     fontWeight: FontWeight.w500,
                   ),
@@ -79,7 +88,8 @@ class DangerScreen extends StatelessWidget {
                   t('danger_body'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    // FIXED: withOpacity → withValues
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: locale.bodySize,
                     height: 1.5,
                   ),
@@ -92,10 +102,12 @@ class DangerScreen extends StatelessWidget {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    // FIXED: withOpacity → withValues
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                        color: Colors.white.withOpacity(0.2)),
+                      // FIXED: withOpacity → withValues
+                        color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +115,8 @@ class DangerScreen extends StatelessWidget {
                       Text(
                         t('blocked_link'),
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
+                          // FIXED: withOpacity → withValues
+                          color: Colors.white.withValues(alpha: 0.7),
                           fontSize: locale.subtitleSize,
                         ),
                       ),
@@ -134,7 +147,8 @@ class DangerScreen extends StatelessWidget {
                         Text(
                           t('threat_level'),
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            // FIXED: withOpacity → withValues
+                            color: Colors.white.withValues(alpha: 0.8),
                             fontSize: locale.subtitleSize,
                           ),
                         ),
@@ -152,10 +166,12 @@ class DangerScreen extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
-                        value: threatScore.clamp(0.0, 1.0),
+                        // FIXED: use progressValue (0.0–1.0) not raw threatScore
+                        value: progressValue,
                         minHeight: 10,
+                        // FIXED: withOpacity → withValues
                         backgroundColor:
-                            Colors.white.withOpacity(0.25),
+                        Colors.white.withValues(alpha: 0.25),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                             Colors.white),
                       ),
