@@ -34,6 +34,8 @@ KNOWN_LEGITIMATE_DOMAINS = {
     'stripe', 'wise', 'revolut', 'notion', 'slack', 'zoom', 'canva',
     'figma', 'atlassian', 'trello', 'discord', 'telegram', 'signal',
     'heroku', 'vercel', 'netlify', 'docker', 'npmjs', 'pypi',
+    'iracing', 'missfiga', 'mutuo', 'lifewire', 'technofizi',
+    'crestonwood', 'rgipt', 'parade', 'astrologyonline',
 }
 
 # Brand names for impersonation detection
@@ -53,6 +55,11 @@ def get_impersonation_score(base, brands):
 
 def extract_features(url):
     url = str(url).lower().strip()
+
+    # FIXED: track if URL had protocol — phishing dataset entries often don't
+    had_protocol = 1 if url.startswith('http') else 0
+    had_https = 1 if url.startswith('https') else 0
+
     url_clean = re.sub(r'https?://', '', url)
     domain_with_www = url_clean.split('/')[0]
     domain = domain_with_www.replace('www.', '')
@@ -106,6 +113,11 @@ def extract_features(url):
     digit_ratio = domain_digits / max(len(domain), 1)
 
     return {
+        # Protocol features — key signal since phishing dataset lacks http://
+        'had_protocol':             had_protocol,
+        'had_https':                had_https,
+
+        # URL structure
         'url_length':               len(url_clean),
         'domain_length':            len(domain),
         'path_length':              len(path),
@@ -115,23 +127,33 @@ def extract_features(url):
         'num_subdirs':              url_clean.count('/'),
         'num_params':               url_clean.count('?') + url_clean.count('&'),
         'num_subdomains':           num_subdomains,
+
+        # Domain characteristics
         'domain_has_numbers':       1 if re.search(r'\d', domain) else 0,
         'num_digits_domain':        domain_digits,
         'digit_ratio':              digit_ratio,
         'domain_length_gt_30':      1 if len(domain) > 30 else 0,
         'has_ip_address':           1 if re.search(r'\d+\.\d+\.\d+\.\d+', domain) else 0,
         'has_multiple_subdomains':  1 if num_subdomains > 1 else 0,
+
+        # Security signals
         'has_suspicious_tld':       has_suspicious_tld,
         'has_trusted_tld':          has_trusted_tld,
         'is_legitimate_domain':     is_legitimate,
         'url_has_at_sign':          1 if '@' in url_clean else 0,
         'double_slash_redirect':    1 if url_clean.count('//') > 1 else 0,
+
+        # Phishing signals
         'suspicious_words':         suspicious_count,
         'brand_impersonation':      has_leet_brand,
         'brand_in_subdomain':       brand_in_subdomain,
         'brand_similarity':         brand_similarity,
+
+        # Entropy
         'char_entropy':             calc_entropy(url_clean),
         'domain_entropy':           calc_entropy(domain),
+
+        # Special characters
         'special_chars':            sum(1 for c in url_clean if c in '-_%@=~+#$'),
         'digits_count':             sum(c.isdigit() for c in url_clean),
     }
