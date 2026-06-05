@@ -63,12 +63,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _clearAll(AppLocale locale) async {
-    final isAr = locale.isArabic;
+    // FIXED: removed unused `isAr` variable
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           AppTexts.get('confirm_clear', locale.lang),
           style: TextStyle(
@@ -139,16 +139,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    final t = (String k) => AppTexts.get(k, locale.lang);
+    // FIXED: use function declaration instead of variable assignment
+    String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
     final isDark = locale.darkMode;
 
     final bgColor = isDark ? AppColors.darkBg : AppColors.background;
     final cardColor = isDark ? AppColors.darkCard : AppColors.cardBg;
     final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
     final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
@@ -182,7 +183,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Text(
                         t('last_50'),
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.75),
+                          // FIXED: withOpacity → withValues
+                          color: Colors.white.withValues(alpha: 0.75),
                           fontSize: locale.subtitleSize,
                         ),
                       ),
@@ -195,10 +197,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: AppColors.danger.withOpacity(0.2),
+                          // FIXED: withOpacity → withValues
+                          color: AppColors.danger.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.3)),
+                            // FIXED: withOpacity → withValues
+                              color: Colors.white.withValues(alpha: 0.3)),
                         ),
                         child: Text(
                           t('clear_all'),
@@ -253,7 +257,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     const SizedBox(width: 6),
                     ElevatedButton.icon(
                       onPressed:
-                          _selected.isEmpty ? null : _deleteSelected,
+                      _selected.isEmpty ? null : _deleteSelected,
                       icon: const Icon(Icons.delete_outline,
                           size: 18, color: Colors.white),
                       label: Text(
@@ -286,145 +290,151 @@ class _HistoryScreenState extends State<HistoryScreen> {
             Expanded(
               child: _entries.isEmpty
                   ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.history,
-                            size: 64,
-                            color: textSecondary.withOpacity(0.4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.history,
+                      size: 64,
+                      // FIXED: withOpacity → withValues
+                      color: textSecondary.withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      isAr
+                          ? 'لا يوجد روابط محفوظة'
+                          : 'No links checked yet',
+                      style: TextStyle(
+                        // FIXED: withOpacity → withValues
+                        color: textSecondary.withValues(alpha: 0.6),
+                        fontSize: locale.bodySize,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+                  : ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: _entries.length,
+                separatorBuilder: (_, _) =>
+                const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final entry = _entries[index];
+                  final color = _verdictColor(entry.verdict);
+                  final isSelected = _selected.contains(index);
+                  final verdictLabel = AppTexts.get(
+                    entry.verdict.toLowerCase(),
+                    locale.lang,
+                  );
+
+                  return GestureDetector(
+                    onLongPress: () => setState(() {
+                      _selectionMode = true;
+                      _selected.add(index);
+                    }),
+                    onTap: _selectionMode
+                        ? () => _toggleSelect(index)
+                        : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                        // FIXED: withOpacity → withValues
+                            ? AppColors.accent.withValues(alpha: 0.1)
+                            : cardColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.accent
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            // FIXED: withOpacity → withValues
+                            color: Colors.black.withValues(
+                                alpha: isDark ? 0.3 : 0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            isAr
-                                ? 'لا يوجد روابط محفوظة'
-                                : 'No links checked yet',
-                            style: TextStyle(
-                              color: textSecondary.withOpacity(0.6),
-                              fontSize: locale.bodySize,
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          // Dot or checkbox
+                          if (_selectionMode)
+                            Icon(
+                              isSelected
+                                  ? Icons.check_circle
+                                  : Icons.radio_button_unchecked,
+                              color: isSelected
+                                  ? AppColors.accent
+                                  : textSecondary,
+                              size: 22,
+                            )
+                          else
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.domain,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: locale.bodySize,
+                                    color: textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _formatTime(entry.time),
+                                  style: TextStyle(
+                                    color: textSecondary,
+                                    fontSize: locale.subtitleSize,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              // FIXED: withOpacity → withValues
+                              color: color.withValues(alpha: 0.12),
+                              borderRadius:
+                              BorderRadius.circular(8),
+                              border: Border.all(
+                                // FIXED: withOpacity → withValues
+                                  color: color.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              verdictLabel,
+                              style: TextStyle(
+                                color: color,
+                                fontWeight: FontWeight.bold,
+                                fontSize: locale.subtitleSize,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _entries.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final entry = _entries[index];
-                        final color = _verdictColor(entry.verdict);
-                        final isSelected = _selected.contains(index);
-                        final verdictLabel = AppTexts.get(
-                          entry.verdict.toLowerCase(),
-                          locale.lang,
-                        );
-
-                        return GestureDetector(
-                          onLongPress: () => setState(() {
-                            _selectionMode = true;
-                            _selected.add(index);
-                          }),
-                          onTap: _selectionMode
-                              ? () => _toggleSelect(index)
-                              : null,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.accent.withOpacity(0.1)
-                                  : cardColor,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppColors.accent
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(
-                                      isDark ? 0.3 : 0.04),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                // Dot or checkbox
-                                if (_selectionMode)
-                                  Icon(
-                                    isSelected
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
-                                    color: isSelected
-                                        ? AppColors.accent
-                                        : textSecondary,
-                                    size: 22,
-                                  )
-                                else
-                                  Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: color,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        entry.domain,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: locale.bodySize,
-                                          color: textPrimary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _formatTime(entry.time),
-                                        style: TextStyle(
-                                          color: textSecondary,
-                                          fontSize: locale.subtitleSize,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: color.withOpacity(0.12),
-                                    borderRadius:
-                                        BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: color.withOpacity(0.3)),
-                                  ),
-                                  child: Text(
-                                    verdictLabel,
-                                    style: TextStyle(
-                                      color: color,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: locale.subtitleSize,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
                     ),
+                  );
+                },
+              ),
             ),
 
             const BottomNav(currentIndex: 2),
