@@ -206,6 +206,18 @@ def check():
 # ─────────────────────────────────────────────
 # Run
 # ─────────────────────────────────────────────
+@app.route('/debug', methods=['POST'])
+def debug():
+    data = request.get_json(silent=True)
+    url = data['url'].strip()
+    features = extract_features(url)
+    feat_df = pd.DataFrame([features])
+    probs = model.predict_proba(feat_df)[0]
+    classes = list(model.classes_)
+    return jsonify({
+        "url": url,
+        "probabilities": dict(zip([str(c) for c in classes], [round(float(p)*100,1) for p in probs]))
+    })
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
