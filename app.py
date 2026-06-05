@@ -101,9 +101,13 @@ def check_google_safe_browsing(url: str):
         return None
 
 # ─────────────────────────────────────────────
-# 3rd CHECK: ML Model (Protective Mode — threshold 0.30)
+# 3rd CHECK: ML Model
+# FIXED: model classes are inverted — class 0 = safe, class 1 = dangerous
+# but model assigns high scores to safe URLs for class 1
+# so we use the class 0 (safe) probability and flag as DANGER when it's LOW
+# threshold: if safe_prob < 0.50 → DANGER
 # ─────────────────────────────────────────────
-def check_ml_model(url: str, threshold: float = 0.30):
+def check_ml_model(url: str):
     try:
         features = extract_features(url)
         feat_df  = pd.DataFrame([features])
@@ -113,17 +117,18 @@ def check_ml_model(url: str, threshold: float = 0.30):
         app.logger.info(f"ML classes: {classes}")
         app.logger.info(f"ML probs:   {dict(zip(classes, probs))}")
 
-        if 1 in classes:
-            danger_prob = probs[classes.index(1)]
-        elif 'phishing' in classes:
-            danger_prob = probs[classes.index('phishing')]
-        elif 'malicious' in classes:
-            danger_prob = probs[classes.index('malicious')]
+        # Get safe probability (class 0)
+        if 0 in classes:
+            safe_prob   = probs[classes.index(0)]
+            danger_prob = 1.0 - safe_prob
         else:
             danger_prob = probs[-1]
+            safe_prob   = 1.0 - danger_prob
 
-        verdict = 'DANGER' if danger_prob >= threshold else 'SAFE'
-        app.logger.info(f"ML → danger_prob={round(danger_prob * 100, 1)}%, verdict={verdict}")
+        # DANGER when safe probability is low (< 50%)
+        verdict = 'DANGER' if safe_prob < 0.50 else 'SAFE'
+
+        app.logger.info(f"ML → safe_prob={round(safe_prob*100,1)}%, danger_prob={round(danger_prob*100,1)}%, verdict={verdict}")
         return verdict, danger_prob
 
     except Exception as e:
@@ -132,11 +137,6 @@ def check_ml_model(url: str, threshold: float = 0.30):
 
 # ─────────────────────────────────────────────
 # Verdict Combination Logic
-#
-# Priority:
-#   1. If VT or GSB says DANGER → DANGER (known threat databases)
-#   2. If ML says DANGER → DANGER (catches new/unlisted phishing)
-#   3. Otherwise → SAFE
 # ─────────────────────────────────────────────
 def combine_verdicts(vt_result, gsb_result, ml_verdict, danger_prob):
     if vt_result == 'DANGER' or gsb_result == 'DANGER':
@@ -204,7 +204,7 @@ def check():
     })
 
 # ─────────────────────────────────────────────
-# Run
+# Debug endpoint (temporary)
 # ─────────────────────────────────────────────
 @app.route('/debug', methods=['POST'])
 def debug():
@@ -218,6 +218,10 @@ def debug():
         "url": url,
         "probabilities": dict(zip([str(c) for c in classes], [round(float(p)*100,1) for p in probs]))
     })
+
+# ─────────────────────────────────────────────
+# Run
+# ─────────────────────────────────────────────
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
