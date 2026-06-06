@@ -1,16 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.BIND_VPN_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"/>
-
     <application
         android:label="LinkGuard"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -29,18 +27,19 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-
         <!-- VPN Service -->
         <service
             android:name=".LinkGuardVpnService"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:foregroundServiceType="specialUse">
+            <meta-data
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="monitorDeviceNetwork"/>
             <intent-filter>
                 <action android:name="android.net.VpnService"/>
             </intent-filter>
         </service>
-
         <!-- Accessibility Service -->
         <service
             android:name=".LinkGuardAccessibilityService"
@@ -54,12 +53,10 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config"/>
         </service>
-
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
     </application>
-
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
