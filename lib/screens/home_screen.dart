@@ -19,8 +19,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Start as FALSE so user must explicitly turn it ON
-  // This ensures VPN permission dialog is shown on first tap
   bool _protectionActive = false;
   int _safeCount = 0;
   int _threatCount = 0;
@@ -35,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
         checkLink(url);
       },
       onDangerDetected: (url, score) {
+        // Only show the screen — history is saved via onLinkChecked
         if (!mounted) return;
         Navigator.push(
           context,
@@ -46,6 +45,19 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+      onLinkChecked: (url, verdict, score) async {
+        // Save ALL VPN-detected links (SAFE + DANGER) to history
+        // and update the counters on the home screen
+        final domain = Uri.tryParse(url)?.host ?? url;
+        await HistoryService.addEntry(
+          LinkEntry(
+            domain: domain,
+            verdict: verdict,
+            time: DateTime.now(),
+          ),
+        );
+        if (mounted) await _loadStats();
+      },
     );
   }
 
@@ -56,33 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _safeCount = stats['safe'] ?? 0;
         _threatCount = stats['threats'] ?? 0;
       });
-    }
-  }
-
-  Future<void> _toggleVpn(bool val) async {
-    setState(() => _protectionActive = val);
-    if (val) {
-      try {
-        debugPrint('Calling startVpn...');
-        await VpnChannel.startVpn();
-        debugPrint('startVpn called successfully');
-      } catch (e) {
-        debugPrint('startVpn error: $e');
-        if (mounted) {
-          setState(() => _protectionActive = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not start VPN: $e')),
-          );
-        }
-      }
-    } else {
-      try {
-        debugPrint('Calling stopVpn...');
-        await VpnChannel.stopVpn();
-        debugPrint('stopVpn called successfully');
-      } catch (e) {
-        debugPrint('stopVpn error: $e');
-      }
     }
   }
 
@@ -210,6 +195,31 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _toggleVpn(bool val) async {
+    setState(() => _protectionActive = val);
+    if (val) {
+      try {
+        debugPrint('Calling startVpn...');
+        await VpnChannel.startVpn();
+        debugPrint('startVpn called successfully');
+      } catch (e) {
+        debugPrint('startVpn error: $e');
+        if (mounted) {
+          setState(() => _protectionActive = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not start VPN: $e')),
+          );
+        }
+      }
+    } else {
+      try {
+        await VpnChannel.stopVpn();
+      } catch (e) {
+        debugPrint('stopVpn error: $e');
+      }
+    }
   }
 
   @override

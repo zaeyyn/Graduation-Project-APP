@@ -23,6 +23,7 @@ class LinkGuardVpnService : VpnService() {
     private var isRunning = false
 
     companion object {
+        const val ACTION_LINK_CHECKED = "com.example.flutter_application_1.LINK_CHECKED"
         private const val TAG = "LinkGuard"
         private const val API_URL = "https://linkguard-api-yy7v.onrender.com/check"
         private const val TIMEOUT_MS = 15_000
@@ -31,7 +32,6 @@ class LinkGuardVpnService : VpnService() {
         private const val CACHE_TTL_MS = 300_000L // 5 minutes
     }
 
-    // Skip these immediately — never call API for infrastructure domains
     private val SKIP_SUFFIXES = listOf(
         ".google.com", ".googleapis.com", ".gstatic.com",
         ".googleusercontent.com", ".googlevideo.com",
@@ -131,14 +131,10 @@ class LinkGuardVpnService : VpnService() {
                 while (isRunning) {
                     val length = inputStream.read(buffer)
                     if (length <= 0) continue
-
-                    // Forward packet immediately
                     outputStream.write(buffer, 0, length)
-
                     val domain = parseDnsQuery(buffer, length) ?: continue
                     if (domain.isEmpty() || domain.startsWith(".")) continue
                     if (shouldSkipDomain(domain)) continue
-
                     Log.d(TAG, "DNS query: $domain")
                     checkDomain(domain)
                 }
@@ -191,7 +187,6 @@ class LinkGuardVpnService : VpnService() {
 
     private fun checkDomain(domain: String) {
         val now = System.currentTimeMillis()
-
         synchronized(checkedDomains) {
             val lastChecked = checkedDomains[domain]
             if (lastChecked != null && (now - lastChecked) < CACHE_TTL_MS) return
@@ -222,6 +217,16 @@ class LinkGuardVpnService : VpnService() {
                 val verdict = json.getString("verdict")
                 val score = json.optDouble("score", 0.0)
 
+                // Broadcast ALL results — Flutter saves to history and updates counters
+                val broadcastIntent = Intent(ACTION_LINK_CHECKED).apply {
+                    putExtra("url", fullUrl)
+                    putExtra("verdict", verdict)
+                    putExtra("score", score)
+                    setPackage(packageName)
+                }
+                sendBroadcast(broadcastIntent)
+
+                // For DANGER: also show notification and danger screen
                 if (verdict == "DANGER") {
                     Log.d(TAG, "DANGER detected: $domain")
                     showThreatNotification(domain)
@@ -238,8 +243,6 @@ class LinkGuardVpnService : VpnService() {
 
     private fun launchDangerScreen(url: String, score: Double) {
         try {
-            // startActivity brings MainActivity to foreground from any app
-            // onNewIntent fires → onResume shows the danger screen
             val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
                 addFlags(
                     Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -251,7 +254,6 @@ class LinkGuardVpnService : VpnService() {
                 putExtra("show_danger", true)
             }
             intent?.let { startActivity(it) }
-            Log.d(TAG, "Launched danger screen for: $url")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch danger screen: ${e.message}")
         }

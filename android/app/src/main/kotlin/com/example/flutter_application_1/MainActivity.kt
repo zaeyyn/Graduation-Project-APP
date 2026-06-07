@@ -1,7 +1,10 @@
 package com.example.flutter_application_1
 
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.VpnService
 import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
@@ -14,17 +17,36 @@ class MainActivity : FlutterActivity() {
     private var methodChannel: MethodChannel? = null
     private val VPN_REQUEST_CODE = 100
 
-    // Debounce — same URL won't show danger screen twice within 10 seconds
+    // Danger screen debounce
     private var lastDangerUrl = ""
     private var lastDangerTime = 0L
     private val DANGER_DEBOUNCE_MS = 10_000L
-
-    // Track which danger URL we already showed — prevents onResume re-showing old intents
     private var handledDangerUrl = ""
 
-    // Retry until Flutter is ready — handles both background resume and cold start
+    // Pending link history entries when app is in background
+    private val pendingLinks = mutableListOf<Map<String, Any>>()
+
+    // Receives ALL link check results from VPN — saves to history + updates counters
+    private val linkCheckedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val url = intent?.getStringExtra("url") ?: return
+            val verdict = intent.getStringExtra("verdict") ?: return
+            val score = intent.getDoubleExtra("score", 0.0)
+            val data = mapOf<String, Any>("url" to url, "verdict" to verdict, "score" to score)
+
+            if (methodChannel != null) {
+                runOnUiThread {
+                    methodChannel?.invokeMethod("onLinkChecked", data)
+                }
+            } else {
+                // App in background — store and process when app opens
+                synchronized(pendingLinks) { pendingLinks.add(data) }
+            }
+        }
+    }
+
     private fun showDangerWhenReady(url: String, score: Double, attempts: Int = 0) {
-        if (attempts > 10) return // Give up after 5 seconds
+        if (attempts > 10) return
         if (methodChannel == null) {
             window.decorView.postDelayed({
                 showDangerWhenReady(url, score, attempts + 1)
@@ -71,13 +93,36 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // Register receiver for ALL link check results
+        val linkFilter = IntentFilter(LinkGuardVpnService.ACTION_LINK_CHECKED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(linkCheckedReceiver, linkFilter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(linkCheckedReceiver, linkFilter)
+        }
     }
 
     override fun onResume() {
         super.onResume()
+
+        // Process any pending link history entries
+        synchronized(pendingLinks) {
+            if (pendingLinks.isNotEmpty() && methodChannel != null) {
+                val toProcess = pendingLinks.toList()
+                pendingLinks.clear()
+                runOnUiThread {
+                    for (data in toProcess) {
+                        methodChannel?.invokeMethod("onLinkChecked", data)
+                    }
+                }
+            }
+        }
+
+        // Show danger screen if launched with danger intent
         val dangerUrl = intent?.getStringExtra("danger_url") ?: return
         if (intent?.getBooleanExtra("show_danger", false) != true) return
-        if (dangerUrl == handledDangerUrl) return // Already showed this — skip
+        if (dangerUrl == handledDangerUrl) return
         handledDangerUrl = dangerUrl
         val score = intent?.getDoubleExtra("danger_score", 0.0) ?: 0.0
         showDangerIfNew(dangerUrl, score)
@@ -85,8 +130,8 @@ class MainActivity : FlutterActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)       // Update current intent to the new one
-        handledDangerUrl = ""   // Reset so onResume shows the new danger
+        setIntent(intent)
+        handledDangerUrl = ""
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -109,5 +154,10 @@ class MainActivity : FlutterActivity() {
         } else {
             startService(serviceIntent)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(linkCheckedReceiver)
     }
 }

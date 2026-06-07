@@ -14,12 +14,12 @@ class VpnChannel {
   static void listenForLinks(
     Function(String url) onLinkDetected, {
     Function(String url, double score)? onDangerDetected,
+    Function(String url, String verdict, double score)? onLinkChecked,
   }) {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onLinkDetected') {
         final domain = call.arguments as String;
-        final url = 'https://$domain';
-        onLinkDetected(url);
+        onLinkDetected('https://$domain');
       }
       if (call.method == 'onUrlDetected') {
         final url = call.arguments as String;
@@ -30,6 +30,13 @@ class VpnChannel {
         final url = args['url'] as String;
         final score = (args['score'] as num).toDouble();
         onDangerDetected?.call(url, score);
+      }
+      if (call.method == 'onLinkChecked') {
+        final args = call.arguments as Map;
+        final url = args['url'] as String;
+        final verdict = args['verdict'] as String;
+        final score = (args['score'] as num).toDouble();
+        onLinkChecked?.call(url, verdict, score);
       }
     });
   }
