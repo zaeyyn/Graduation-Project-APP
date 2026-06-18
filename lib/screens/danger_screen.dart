@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:telephony/telephony.dart';
+
 import '../utils/app_texts.dart';
 import '../utils/app_theme.dart';
 import '../widgets/app_locale.dart';
 
-class DangerScreen extends StatelessWidget {
+class DangerScreen extends StatefulWidget {
   final String url;
   final double threatScore;
 
@@ -15,19 +18,67 @@ class DangerScreen extends StatelessWidget {
   });
 
   @override
+  State<DangerScreen> createState() => _DangerScreenState();
+}
+
+class _DangerScreenState extends State<DangerScreen> {
+  final Telephony _telephony = Telephony.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sendFamilySms();
+    });
+  }
+
+  Future<void> _sendFamilySms() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final notifyFamily = prefs.getBool('notifyFamily') ?? false;
+    if (!notifyFamily) return;
+
+    final familyPhone = prefs.getString('family_phone') ?? '';
+    if (familyPhone.isEmpty) return;
+
+    final domain = Uri.tryParse(widget.url)?.host ?? widget.url;
+    // threatScore is already 0–100, so just round/clamp it directly
+    final percent = widget.threatScore.toInt().clamp(0, 100);
+
+    final message =
+        '⚠️ LinkGuard Alert\n'
+        'A dangerous link was detected on this device.\n'
+        'Link: $domain\n'
+        'Threat level: $percent%\n\n'
+        '⚠️ تنبيه LinkGuard\n'
+        'تم اكتشاف رابط خطير على هذا الجهاز.\n'
+        'الرابط: $domain\n'
+        'مستوى الخطر: $percent%';
+
+    try {
+      final permissionGranted = await _telephony.requestPhoneAndSmsPermissions;
+
+      if (permissionGranted == true) {
+        await _telephony.sendSms(
+          to: familyPhone,
+          message: message,
+          isMultipart: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('SMS send failed: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final locale = context.watch<AppLocale>();
-    // FIXED: use function declaration instead of variable assignment
     String t(String k) => AppTexts.get(k, locale.lang);
     final isAr = locale.isArabic;
-    final domain = Uri.tryParse(url)?.host ?? url;
+    final domain = Uri.tryParse(widget.url)?.host ?? widget.url;
 
-    // FIXED: threatScore is already 0–100 from the API (e.g. 98.6)
-    // so we just round it directly instead of multiplying by 100 again
-    final percent = threatScore.toInt().clamp(0, 100);
-
-    // FIXED: progress bar also needs 0.0–1.0 range, so divide by 100
-    final progressValue = (threatScore / 100).clamp(0.0, 1.0);
+    final percent = widget.threatScore.toInt().clamp(0, 100);
+    final progressValue = (widget.threatScore / 100).clamp(0.0, 1.0);
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
@@ -35,19 +86,15 @@ class DangerScreen extends StatelessWidget {
         backgroundColor: AppColors.danger,
         body: SafeArea(
           child: Padding(
-            padding:
-            const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Spacer(),
-
-                // Warning icon
                 Container(
                   width: 110,
                   height: 110,
                   decoration: BoxDecoration(
-                    // FIXED: withOpacity → withValues
                     color: Colors.white.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
@@ -58,8 +105,6 @@ class DangerScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
-
-                // Title
                 Text(
                   t('danger_title'),
                   textAlign: TextAlign.center,
@@ -75,39 +120,29 @@ class DangerScreen extends StatelessWidget {
                   t('danger_subtitle'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    // FIXED: withOpacity → withValues
                     color: Colors.white.withValues(alpha: 0.85),
                     fontSize: locale.bodySize + 2,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Body
                 Text(
                   t('danger_body'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    // FIXED: withOpacity → withValues
                     color: Colors.white.withValues(alpha: 0.8),
                     fontSize: locale.bodySize,
                     height: 1.5,
                   ),
                 ),
-
                 const SizedBox(height: 28),
-
-                // Blocked URL box
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    // FIXED: withOpacity → withValues
                     color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      // FIXED: withOpacity → withValues
-                        color: Colors.white.withValues(alpha: 0.2)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,7 +150,6 @@ class DangerScreen extends StatelessWidget {
                       Text(
                         t('blocked_link'),
                         style: TextStyle(
-                          // FIXED: withOpacity → withValues
                           color: Colors.white.withValues(alpha: 0.7),
                           fontSize: locale.subtitleSize,
                         ),
@@ -134,10 +168,7 @@ class DangerScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Threat level bar
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -147,7 +178,6 @@ class DangerScreen extends StatelessWidget {
                         Text(
                           t('threat_level'),
                           style: TextStyle(
-                            // FIXED: withOpacity → withValues
                             color: Colors.white.withValues(alpha: 0.8),
                             fontSize: locale.subtitleSize,
                           ),
@@ -166,22 +196,15 @@ class DangerScreen extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
-                        // FIXED: use progressValue (0.0–1.0) not raw threatScore
                         value: progressValue,
                         minHeight: 10,
-                        // FIXED: withOpacity → withValues
-                        backgroundColor:
-                        Colors.white.withValues(alpha: 0.25),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.white),
+                        backgroundColor: Colors.white.withValues(alpha: 0.25),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     ),
                   ],
                 ),
-
                 const Spacer(),
-
-                // Go Back button
                 SizedBox(
                   width: double.infinity,
                   height: 58,

@@ -5,6 +5,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
@@ -68,6 +70,16 @@ class MainActivity : FlutterActivity() {
         showDangerWhenReady(url, score)
     }
 
+    // Checks Android's actual active network transport rather than trusting
+    // any cached flag, so it stays correct even after the app process was
+    // killed and restarted while the VPN kept running in the background.
+    private fun isVpnActive(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -89,6 +101,9 @@ class MainActivity : FlutterActivity() {
                 "stopVpn" -> {
                     stopService(Intent(this, LinkGuardVpnService::class.java))
                     result.success(null)
+                }
+                "isVpnActive" -> {
+                    result.success(isVpnActive())
                 }
                 else -> result.notImplemented()
             }

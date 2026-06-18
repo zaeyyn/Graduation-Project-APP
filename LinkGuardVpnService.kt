@@ -12,10 +12,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.URL
-import java.nio.ByteBuffer
 
 class LinkGuardVpnService : VpnService() {
 
@@ -25,12 +26,17 @@ class LinkGuardVpnService : VpnService() {
     private var isRunning = false
 
     companion object {
-        const val ACTION_THREAT = "com.example.flutter_application_1.THREAT"
+        // Fired for EVERY checked domain (SAFE or DANGER) so the Flutter side
+        // can keep its history/stats accurate. Previously this only fired for
+        // DANGER under a different name, which is why MainActivity's receiver
+        // never matched it.
+        const val ACTION_LINK_CHECKED = "com.example.flutter_application_1.LINK_CHECKED"
         private const val TAG = "LinkGuard"
         private const val API_URL = "https://linkguard-api-yy7v.onrender.com/check"
         private const val TIMEOUT_MS = 15_000
         private const val CHANNEL_ID = "linkguard_channel"
         private const val NOTIFICATION_ID = 1
+        private const val DNS_SERVER = "8.8.8.8"
     }
 
     override fun onCreate() {
@@ -73,11 +79,19 @@ class LinkGuardVpnService : VpnService() {
             .build()
     }
 
+    /**
+     * Sets up the VPN so ONLY traffic to the DNS server passes through our tun
+     * interface. Every other connection (the real page load once a domain is
+     * resolved) bypasses the VPN entirely and behaves like a normal network
+     * request. This is what fixes "safe" links timing out — previously ALL
+     * traffic (0.0.0.0/0) was routed into the tun but never actually forwarded
+     * anywhere, so nothing other than DNS classification ever worked.
+     */
     private fun startVpn() {
         vpnInterface = Builder()
             .addAddress("10.0.0.2", 24)
-            .addDnsServer("8.8.8.8")
-            .addRoute("0.0.0.0", 0)
+            .addDnsServer(DNS_SERVER)
+            .addRoute(DNS_SERVER, 32)
             .setSession("LinkGuard")
             .addDisallowedApplication(packageName)
             .establish()
@@ -94,17 +108,17 @@ class LinkGuardVpnService : VpnService() {
                     val length = inputStream.read(buffer)
                     if (length <= 0) continue
 
-                    val packet = ByteBuffer.wrap(buffer, 0, length)
-
-                    // Forward packet (pass-through VPN)
-                    outputStream.write(buffer, 0, length)
-
-                    // Try to extract DNS query domain
                     val domain = parseDnsQuery(buffer, length)
                     if (domain != null && domain.isNotEmpty() && !domain.startsWith(".")) {
                         Log.d(TAG, "DNS query: $domain")
                         checkDomain(domain)
                     }
+
+                    // Actually resolve the query and hand the real answer back
+                    // to the device. This replaces the old line that echoed
+                    // the outgoing packet straight back into the same
+                    // interface, which never reached the real internet.
+                    handleDnsPacket(buffer.copyOf(length), outputStream)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "VPN thread error: ${e.message}")
@@ -113,7 +127,118 @@ class LinkGuardVpnService : VpnService() {
     }
 
     /**
-     * Parse DNS query packet to extract the queried domain name.
+     * Forwards a captured DNS query to the real DNS server using a protected
+     * socket (so the request itself doesn't loop back into the VPN), then
+     * writes the real response back into the tun interface so the requesting
+     * app gets a proper, real answer instead of hanging forever.
+     */
+    private fun handleDnsPacket(packet: ByteArray, outputStream: FileOutputStream) {
+        try {
+            val length = packet.size
+            if (length < 28) return // smaller than IP(20) + UDP(8) header
+
+            val ipHeaderLen = (packet[0].toInt() and 0x0F) * 4
+            val udpOffset = ipHeaderLen
+            if (udpOffset + 8 > length) return
+
+            val srcPort = ((packet[udpOffset].toInt() and 0xFF) shl 8) or
+                    (packet[udpOffset + 1].toInt() and 0xFF)
+
+            val dnsOffset = udpOffset + 8
+            if (dnsOffset >= length) return
+            val dnsPayload = packet.copyOfRange(dnsOffset, length)
+
+            val socket = DatagramSocket()
+            try {
+                protect(socket) // critical: keeps this socket outside the VPN tunnel
+                socket.soTimeout = 5000
+                val dnsServerAddr = InetAddress.getByName(DNS_SERVER)
+                socket.send(DatagramPacket(dnsPayload, dnsPayload.size, dnsServerAddr, 53))
+
+                val responseBuffer = ByteArray(1024)
+                val responsePacket = DatagramPacket(responseBuffer, responseBuffer.size)
+                socket.receive(responsePacket)
+
+                val reply = buildDnsReplyPacket(
+                    originalPacket = packet,
+                    ipHeaderLen = ipHeaderLen,
+                    srcPort = srcPort,
+                    dnsResponse = responsePacket.data.copyOfRange(0, responsePacket.length)
+                )
+                outputStream.write(reply)
+            } finally {
+                socket.close()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "DNS forward error: ${e.message}")
+        }
+    }
+
+    /**
+     * Builds a real IPv4/UDP packet wrapping the DNS response, with source and
+     * destination addresses/ports swapped relative to the original query, so
+     * the device's network stack treats it as a genuine incoming reply.
+     */
+    private fun buildDnsReplyPacket(
+        originalPacket: ByteArray,
+        ipHeaderLen: Int,
+        srcPort: Int,
+        dnsResponse: ByteArray
+    ): ByteArray {
+        val udpLen = 8 + dnsResponse.size
+        val totalLen = ipHeaderLen + udpLen
+        val reply = ByteArray(totalLen)
+
+        // Copy the IP header, then swap source/destination addresses
+        System.arraycopy(originalPacket, 0, reply, 0, ipHeaderLen)
+        for (i in 0 until 4) {
+            reply[12 + i] = originalPacket[16 + i] // new src IP = old dest IP
+            reply[16 + i] = originalPacket[12 + i] // new dest IP = old src IP
+        }
+
+        // Update total length field (bytes 2-3 of the IP header)
+        reply[2] = ((totalLen shr 8) and 0xFF).toByte()
+        reply[3] = (totalLen and 0xFF).toByte()
+
+        // Clear checksum before recomputing (bytes 10-11)
+        reply[10] = 0
+        reply[11] = 0
+
+        // UDP header: src port becomes 53, dest port becomes the original source port
+        val udpStart = ipHeaderLen
+        reply[udpStart] = 0
+        reply[udpStart + 1] = 53
+        reply[udpStart + 2] = ((srcPort shr 8) and 0xFF).toByte()
+        reply[udpStart + 3] = (srcPort and 0xFF).toByte()
+        reply[udpStart + 4] = ((udpLen shr 8) and 0xFF).toByte()
+        reply[udpStart + 5] = (udpLen and 0xFF).toByte()
+        reply[udpStart + 6] = 0 // UDP checksum is optional for IPv4 — left unset
+        reply[udpStart + 7] = 0
+
+        System.arraycopy(dnsResponse, 0, reply, udpStart + 8, dnsResponse.size)
+
+        val checksum = computeIpChecksum(reply, ipHeaderLen)
+        reply[10] = ((checksum shr 8) and 0xFF).toByte()
+        reply[11] = (checksum and 0xFF).toByte()
+
+        return reply
+    }
+
+    private fun computeIpChecksum(packet: ByteArray, headerLen: Int): Int {
+        var sum = 0
+        var i = 0
+        while (i < headerLen) {
+            sum += ((packet[i].toInt() and 0xFF) shl 8) or (packet[i + 1].toInt() and 0xFF)
+            i += 2
+        }
+        while (sum shr 16 != 0) {
+            sum = (sum and 0xFFFF) + (sum shr 16)
+        }
+        return sum.inv() and 0xFFFF
+    }
+
+    /**
+     * Parse a DNS query packet to extract the queried domain name.
      * DNS packet structure over UDP/IP:
      * - IP header: 20 bytes (IPv4)
      * - UDP header: 8 bytes
@@ -122,52 +247,43 @@ class LinkGuardVpnService : VpnService() {
      */
     private fun parseDnsQuery(data: ByteArray, length: Int): String? {
         return try {
-            // Minimum size: IP(20) + UDP(8) + DNS header(12) = 40 bytes
             if (length < 40) return null
 
-            // Check IP version (first nibble of first byte)
             val ipVersion = (data[0].toInt() and 0xFF) shr 4
-            if (ipVersion != 4) return null  // Only IPv4
+            if (ipVersion != 4) return null
 
-            // IP header length (second nibble of first byte, in 32-bit words)
             val ipHeaderLen = (data[0].toInt() and 0x0F) * 4
             if (ipHeaderLen < 20) return null
 
-            // Protocol (byte 9 of IP header)
             val protocol = data[9].toInt() and 0xFF
-            if (protocol != 17) return null  // Only UDP (17)
+            if (protocol != 17) return null
 
-            // Check destination port (UDP header starts after IP header)
             val udpOffset = ipHeaderLen
             if (udpOffset + 8 > length) return null
 
             val destPort = ((data[udpOffset + 2].toInt() and 0xFF) shl 8) or
                     (data[udpOffset + 3].toInt() and 0xFF)
-            if (destPort != 53) return null  // Only DNS (port 53)
+            if (destPort != 53) return null
 
-            // DNS header starts after UDP header
             val dnsOffset = udpOffset + 8
             if (dnsOffset + 12 > length) return null
 
-            // DNS flags (bytes 2-3 of DNS header): QR bit (bit 15) must be 0 for query
             val flags = ((data[dnsOffset + 2].toInt() and 0xFF) shl 8) or
                     (data[dnsOffset + 3].toInt() and 0xFF)
             val isQuery = (flags and 0x8000) == 0
             if (!isQuery) return null
 
-            // Question count (bytes 4-5 of DNS header)
             val questionCount = ((data[dnsOffset + 4].toInt() and 0xFF) shl 8) or
                     (data[dnsOffset + 5].toInt() and 0xFF)
             if (questionCount == 0) return null
 
-            // Parse first question: domain name starts at byte 12 of DNS section
             var pos = dnsOffset + 12
             val domainParts = mutableListOf<String>()
 
             while (pos < length) {
                 val labelLen = data[pos].toInt() and 0xFF
-                if (labelLen == 0) break  // End of domain name
-                if (labelLen > 63) return null  // Invalid label length
+                if (labelLen == 0) break
+                if (labelLen > 63) return null
                 pos++
                 if (pos + labelLen > length) return null
                 val label = String(data, pos, labelLen, Charsets.US_ASCII)
@@ -191,7 +307,7 @@ class LinkGuardVpnService : VpnService() {
         if (domain.endsWith(".local") ||
             domain.endsWith(".internal") ||
             domain.endsWith(".arpa") ||
-            domain.contains("google") && (domain.endsWith(".com") || domain.endsWith(".net")) ||
+            (domain.contains("google") && (domain.endsWith(".com") || domain.endsWith(".net"))) ||
             domain == "localhost") return
 
         // Cache check — don't re-check same domain within 1 minute
@@ -228,21 +344,20 @@ class LinkGuardVpnService : VpnService() {
                 val verdict = json.getString("verdict")
                 val score = json.optDouble("score", 0.0)
 
+                // Always report the result back to Flutter (SAFE and DANGER)
+                // so the home screen stats/history stay in sync with what the
+                // VPN actually detected in the background.
+                val checkedIntent = Intent(ACTION_LINK_CHECKED).apply {
+                    putExtra("url", fullUrl)
+                    putExtra("verdict", verdict)
+                    putExtra("score", score)
+                    setPackage(packageName)
+                }
+                sendBroadcast(checkedIntent)
+
                 if (verdict == "DANGER") {
                     Log.d(TAG, "DANGER detected: $domain")
                     showThreatNotification(domain)
-
-                    // Send broadcast to Flutter
-                    val intent = Intent(ACTION_THREAT).apply {
-                        putExtra("domain", domain)
-                        putExtra("verdict", verdict)
-                        putExtra("url", fullUrl)
-                        putExtra("score", score)
-                        setPackage(packageName)
-                    }
-                    sendBroadcast(intent)
-
-                    // Launch danger screen
                     launchDangerScreen(fullUrl, score)
                 }
 

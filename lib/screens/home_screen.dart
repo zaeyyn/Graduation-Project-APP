@@ -27,9 +27,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _syncVpnState(); // <-- NEW: read real VPN state instead of assuming false
     _loadStats();
     VpnChannel.listenForLinks(
-      (url) {
+          (url) {
         checkLink(url);
       },
       onDangerDetected: (url, score) {
@@ -58,7 +59,34 @@ class _HomeScreenState extends State<HomeScreen> {
         );
         if (mounted) await _loadStats();
       },
+      onVpnDenied: () {
+        // NEW: surface the permission-denied case instead of silently
+        // leaving the toggle in a state that doesn't match reality
+        if (!mounted) return;
+        setState(() => _protectionActive = false);
+        final lang = context.read<AppLocale>().lang;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              lang == 'ar'
+                  ? 'تم رفض إذن VPN'
+                  : 'VPN permission was denied',
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  // NEW: queries the native side for the real, current VPN status
+  // (via ConnectivityManager transport check) so the switch reflects
+  // reality even after navigating away and back, or after the app
+  // process is recreated while the VPN service keeps running.
+  Future<void> _syncVpnState() async {
+    final active = await VpnChannel.isVpnActive();
+    if (mounted) {
+      setState(() => _protectionActive = active);
+    }
   }
 
   Future<void> _loadStats() async {
@@ -100,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final domain = Uri.tryParse(url)?.host ?? url;
 
       final verdictStr =
-          result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
+      result.verdict == Verdict.danger ? 'DANGER' : 'SAFE';
 
       await HistoryService.addEntry(
         LinkEntry(
@@ -151,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: trusted ? AppColors.primaryLight : AppColors.safe,
         behavior: SnackBarBehavior.floating,
         shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 3),
         content: Row(
@@ -180,8 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     trusted
                         ? (lang == 'ar'
-                            ? 'هذا الموقع في قائمتك الموثوقة'
-                            : 'This site is in your trusted list')
+                        ? 'هذا الموقع في قائمتك الموثوقة'
+                        : 'This site is in your trusted list')
                         : AppTexts.get('safe_notif_body', lang),
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.9),
@@ -232,9 +260,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final bgColor = isDark ? AppColors.darkBg : AppColors.background;
     final cardColor = isDark ? AppColors.darkCard : AppColors.cardBg;
     final textPrimary =
-        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
     final textSecondary =
-        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+    isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     return Directionality(
       textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
@@ -361,8 +389,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             _protectionActive
                                 ? t('all_links_checked')
                                 : (isAr
-                                    ? 'اضغط للتفعيل'
-                                    : 'Tap to enable protection'),
+                                ? 'اضغط للتفعيل'
+                                : 'Tap to enable protection'),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: textSecondary,
@@ -381,18 +409,18 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             child: Row(
                               mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              MainAxisAlignment.spaceBetween,
                               children: [
                                 Column(
                                   crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       _protectionActive
                                           ? t('protection_active')
                                           : (isAr
-                                              ? 'الحماية غير مفعّلة'
-                                              : 'Protection inactive'),
+                                          ? 'الحماية غير مفعّلة'
+                                          : 'Protection inactive'),
                                       style: TextStyle(
                                         fontWeight: FontWeight.w600,
                                         fontSize: locale.bodySize,
@@ -475,14 +503,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               onPressed: _isChecking
                                   ? null
                                   : () => checkLink(
-                                      'http://paypa1-verify.net/secure/login'),
+                                  'http://paypa1-verify.net/secure/login'),
                               icon: _isChecking
                                   ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2),
+                              )
                                   : const Icon(Icons.bug_report_outlined),
                               label: Text(
                                 'Test Dangerous Link',
@@ -502,7 +530,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               onPressed: _isChecking
                                   ? null
                                   : () =>
-                                      checkLink('https://www.google.com'),
+                                  checkLink('https://www.google.com'),
                               icon: const Icon(Icons.check_circle_outline),
                               label: Text(
                                 'Test Safe Link',
@@ -511,7 +539,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.safe,
                                 side:
-                                    const BorderSide(color: AppColors.safe),
+                                const BorderSide(color: AppColors.safe),
                               ),
                             ),
                           ),
